@@ -1,4 +1,5 @@
 <?php
+//if ( ! defined( 'ABSPATH' ) ) exit;
 
 use TodoPago\Sdk as Sdk;
 
@@ -12,99 +13,68 @@ $http_header = getHttpHeader();
 $connector = new Sdk($http_header, get_option('todopago_environment'));
 
 //opciones para el método getStatus 
-$optionsGS = array('MERCHANT'=>getMerchant(),'OPERATIONID'=>$_GET['order_id']);
+$optionsGS = array('MERCHANT'=>tp_getMerchant(),'OPERATIONID'=>$_GET['order_id']);
 $status = $connector->getStatus($optionsGS);
 
-$rta = '';
+$rta = '<div>';
+$rta .= '<img src="https://portal.todopago.com.ar/app/images/logo.png" alt="Todopago"/>';
+$rta .= '<h3>Estado de la operacion - TodoPago </h3>';
+
 
 $refunds = $status['Operations']['REFUNDS'];
 
+$auxArray = array(
+       "REFUND" => $refunds
+       );
+$auxColection  = '';
+if($refunds != null){  
+    $aux = 'REFUND'; 
+    $auxColection = 'REFUNDS';
+}
 
-  $auxArray = array(
-         "REFUND" => $refunds
-         );
+$rta .='<table>';
 
-  if($refunds != null){  
-      $aux = 'REFUND'; 
-      $auxColection = 'REFUNDS';
-  }
+if (isset($status['Operations']) && is_array($status['Operations']) ) {
+    
+      foreach ($status['Operations'] as $key => $value) {   
+          if(is_array($value) && $key == $auxColection){
+              $rta .= "<tr><td>$key: </td>\n";
+              foreach ($auxArray[$aux] as $key2 => $value2) {  
+                  $rta .= '<td>';           
+                  $rta .= $aux." \n";                
+                  if(is_array($value2)){                    
+                      foreach ($value2 as $key3 => $value3) {
+                          if(is_array($value3)){ 
+                              foreach ($value3 as $key4 => $value4) {
+                                  $rta .= "   - $key4: $value4 \n";
+                              }
+                          }else{
+                              $rta .= "   - $key3: $value3 \n"; 
+                          }                   
+                      }
+                  }else{
+                    $rta .= "   - $key2: $value2 \n";
+                  }
+                  $rta .= '<td>';
+              }
+              $rta .= "</tr>";                                
+          }else{
+              if(is_array($value)){
+                  $rta .= "<tr><td>$key:</td><td>";
+                  foreach ($value as $key5 => $value5) {
+                      $rta .= "   - $key5: $value5 \n";
+                  }
+                  $rta .= "</td></tr>";
+              }else{
+                  $rta .= "<tr><td>$key:</td><td>$value</td></tr>";
+              }
+          }
+      }
+ }else{
+     $rta .= '<tr><td>No hay operaciones para esta orden.<td></tr>';
+ }
 
-
-  if (isset($status['Operations']) && is_array($status['Operations']) ) {
-      
-        foreach ($status['Operations'] as $key => $value) {
-            $rta .= "<tr>";  
-
-            if(is_array($value) && $key == $auxColection){
-                $rta .= "<td>$key: </td>";
-                foreach ($auxArray[$aux] as $key2 => $value2) {               
-                    $rta .= '<td>'.$aux."</td>";                
-                    if(is_array($value2)){                    
-                        foreach ($value2 as $key3 => $value3) {
-                            if(is_array($value3)){                    
-                                 foreach ($value3 as $key4 => $value4) {
-                                    $rta .= "<tr><td>- $key4:</td><td> $value4 </td></tr>";
-                                }
-                            }else{
-                                $rta .= "<tr><td>- $key3:</td><td> $value3 </td></tr>"; 
-                            }                     
-                        }
-                    }else{
-                      $rta .= "<tr><td>- $key2: </td><td> $value2 </td></tr>";
-                    }
-                }                        
-            }else{  
-                if(is_array($value) ){
-                    $rta .= (!empty($value))? "<td>$key:</td><td>". var_export( $value ,true) ."</td>" : "<td>$key:</td><td> - </td>";                
-                }else{
-                    $rta .= "<td>$key:</td><td> $value </td>";
-                }
-            }
-
-            $rta .= "</tr>";
-        }
-   }else{
-       $rta .= 'No hay operaciones para esta orden.';
-   }
-
+$rta .= '</table>';
+$rta .= '</div>';
 //echo($rta);
-?> 
-
-<html>
-<body>
-<head>
-<style>
-img {
-  padding: 7px;
-}
-h3 {
-    font-size: 25px;
-    font-style: courier;
-    color: #333;
-    padding: 7px;
-  }
-
-table, td, th {
-border: 1px solid #ddd;
-text-align: left;
-}
-
-table {
-border-collapse: collapse;
-width: 100%;
-}
-
-th, td {
-font-size: 13px;  
-padding: 7px;
-}
-
-tr:hover { background-color: #f5f5f5 }
-
-</style>
-</head>
-<img src="http://www.todopago.com.ar/sites/todopago.com.ar/files/logo.png">
-<h3>Estado de la operacion - TodoPago </h3>
-<table><?php echo $rta ?></table>
-</body>
-</html>
+echo '<pre>'; print($rta);

@@ -1,7 +1,10 @@
 <?php 
-//	echo '<pre>'; print_r($_SERVER['HTTP_REFERER']);
-	$url_referer = $_SERVER['HTTP_REFERER'];
-	$mode = $_REQUEST['mode']; ?>
+if ( ! defined( 'ABSPATH' ) ) exit;
+
+$url_referer = $_SERVER['HTTP_REFERER'];
+$mode = $_REQUEST['mode']; 
+?>
+
 <div id="credentials-login" class="gateway_settings_form" >
 	<form method="POST" action="credentials.php">
 		<input type="hidden" name="mode" value="<?php echo $mode; ?>">

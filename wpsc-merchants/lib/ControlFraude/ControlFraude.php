@@ -1,5 +1,5 @@
 <?php
-
+if ( ! defined( 'ABSPATH' ) ) exit;
 include_once dirname(__FILE__).'/phone.php';
 
 abstract class ControlFraude {

@@ -1,51 +1,45 @@
 
-/*
 #tp-form-tph{
-	border:1px solid #000;
+	/*margin-left: 150px !important;*/
+	padding:40px 0px 45px 0px;
 }
-*/
 
-/*
-#tp-form-tph input, #tp-form-tph select {
-	display: block;
-	margin:8px 0px 0px 13px;
-	height: 25px;
+.width-table {
+	width: 701 px;
 }
-*/
+
+.width-td {
+	width: 205 px;
+}
+
+.width-input {
+	width: 60 px;
+}
+
 .tp-modal-class {
 
 }
 .tp-modal-content {
 
 }
-/*
+
 #tp-bt-wrapper{
-	margin:0px 0px 0px 9px;
+	float:left;
 }
-*/
-/*
-.tp-button{
-	margin:2px 4px 2px 3px;
-	padding: 5px 8px 6px 8px;
-}
-*/
+
 #tp-logo{
-	background-image: url("images/logo.png");
-	background-repeat: no-repeat;
-	height:40px;
-	width:110px;
-	margin: 12px 0 4px 14px;
+	margin: 10px 0px;
 }
-/*
+
 #tp-content-form{
-	padding: 11px 0;
-	width:300px;
-	margin: -2px 0 0;
+	width: 500px; 
+	margin:0 auto;
 }
-*/
+
 #tp-content-form .dateFields input{
 	width:45%;
 }
+
 #tp-content-form #codigoSeguridadTxt{
 
 }
@@ -53,20 +47,15 @@
 	/*margin:14px -5px 0 9px;*/
 	float: center;
 }
-/*
-.left{
-	float:left;
-}
-*/
+
 .tp-right{
 	float: right;
 }
-/*
-.clear{
-	clear:both;
-}
-*/
 
 .tp-label{
 	font-style: italic;
+}
+
+.margin-form{
+	margin:0 0 0 40px !important;
 }

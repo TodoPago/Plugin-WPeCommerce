@@ -1,9 +1,19 @@
 <?php
-
-
-/**
+/*
+Plugin Name: TODO PAGO
+Plugin URI:  https://github.com/TodoPago/Plugin-WPeCommerce
+Description: Plug in para la integración con gateway de pago Todo Pago
+Version:     1.2.0
+Author:      http://www.softtek.com/
+Author URI:  http://www.softtek.com/
+License:     GPL2
+License URI: https://www.gnu.org/licenses/gpl-2.0.html
+Text Domain: wporg
+Domain Path: /languages
 */
-define('TODOPAGO_PLUGIN_VERSION','1.0.0');
+if ( ! defined( 'ABSPATH' ) ) exit; 
+
+define('TODOPAGO_PLUGIN_VERSION','1.2.0');
 define('TP_FORM_EXTERNO', 'ext');
 define('TP_FORM_HIBRIDO', 'hib');
 define('TODOPAGO_DEVOLUCION_OK', 2011);
@@ -14,6 +24,8 @@ define('TODOPAGO_ENVIRONMENT_PROD', 'prod');
 define('TODOPAGO_TABLE_TRANSACTION', 'todopago_transaction');
 define('TODOPAGO_MAXINSTALLMENTS_ENABLED', '1');
 define('TODOPAGO_MAXINSTALLMENTS_DISABLED', '0');
+define('TODOPAGO_CHECKBOX_ENABLED', '1');
+define('TODOPAGO_CHECKBOX_DISABLED', '0');
 
 // Estados de las ordenes que utiliza wp-eCommerce
 define('TODOPAGO_STATUS_INCOMPLETE_SALE', '1');
@@ -29,12 +41,10 @@ $nzshpcrt_gateways[$num]['name'] = 'Todo Pago';
 $nzshpcrt_gateways[$num]['internalname'] = 'todopago';
 $nzshpcrt_gateways[$num]['function'] = 'function_todopago'; 
 $nzshpcrt_gateways[$num]['form'] = 'form_todopago'; // carga el formulario de config de TP
-$nzshpcrt_gateways[$num]['submit_function'] = 'submit_todopago'; // guarda los datos de configuracion de TP
+$nzshpcrt_gateways[$num]['submit_function'] = 'tp_submit_todopago'; // guarda los datos de configuracion de TP
 $nzshpcrt_gateways[$num]['payment_type'] = 'tp';
 $nzshpcrt_gateways[$num]['display_name'] = 'Todo Pago';
 $nzshpcrt_gateways[$num]['class_name'] = 'wpsc_merchant_todopago';
-
-
 
 
 require_once (dirname(__FILE__) . '/lib/vendor/autoload.php');
@@ -55,10 +65,10 @@ $tplogger = new TodoPagoLogger();
 
 
 		$output.='<tr><td>Ambiente:</td>'; 
-		$output.='<td>' .todopago_environment_list(). '</td></tr>';
+		$output.='<td>' .tp_environment_list(). '</td></tr>';
 
 		$output.='<tr><td>Tipo de segmento:</td>'; 
-		$output.='<td>' .todopago_segment_list(). '</td></tr>';
+		$output.='<td>' .tp_segment_list(). '</td></tr>';
 
 		$output.='<tr><td colspan="2"><h4>Credenciales ambiente desarrollo</h4>
 		<p>Obtene los datos de configuracion para tu negocio ingresando con tu cuenta de Todo Pago:</p>';   
@@ -79,8 +89,8 @@ $tplogger = new TodoPagoLogger();
 
 		$output.='<tr><td colspan="2"><h4>Credenciales ambiente producción</h4>	
 				  <p>Obtene los datos de configuracion para tu negocio ingresando con tu cuenta de Todo Pago:</p>';
-        $output.= '<tr><td>Mail de TodoPago:</td><td><input id="mail_prod"  name="mail_dev" type="text" value="" /></td></tr>';
-		$output.= '<tr><td>Password:</td><td><input id="pass_prod" name="pass_dev" type="password" value="" /></td></tr>';
+        $output.= '<tr><td>Mail de TodoPago:</td><td><input id="mail_prod"  name="mail_prod" type="text" value="" /></td></tr>';
+		$output.= '<tr><td>Password:</td><td><input id="pass_prod" name="pass_prod" type="password" value="" /></td></tr>';
 		$output.='<tr><td colspan="2"><a id="btn-credentials" class="button" onclick="credentials('."'".'prod'."'".')" >obtener credenciales</a></td></tr>';
 
 		$output.='<tr><td>Merchant Id:</td>';
@@ -96,16 +106,16 @@ $tplogger = new TodoPagoLogger();
 		$output.='<tr><td colspan="2"><h4>Estados del Pedido</h4>
 					<p>Datos correspondientes al estado de los pedidos</p>';
 		$output.= '<tr><td>Estado cuando la transacción ha sido iniciada</td>';			
-		$output.='<td>'. todopago_status_list('todopago_estado_inicio') .'</td></tr>';
+		$output.='<td>'. tp_status_list('todopago_estado_inicio') .'</td></tr>';
 
 		$output.= '<tr><td>Estado cuando la transacción ha sido aprobada</td>';			
-		$output.='<td>'. todopago_status_list('todopago_estado_aprobacion') .'</td></tr>';
+		$output.='<td>'. tp_status_list('todopago_estado_aprobacion') .'</td></tr>';
 
 		$output.= '<tr><td>Estado cuando la transacción ha sido rechazada</td>';			
-		$output.='<td>'. todopago_status_list('todopago_estado_rechazo') .'</td></tr>';
+		$output.='<td>'. tp_status_list('todopago_estado_rechazo') .'</td></tr>';
 
 		$output.= '<tr><td>Estado cuando la transacción ha sido offline</td>';			
-		$output.='<td>'. todopago_status_list('todopago_estado_offline') .'</td></tr>';
+		$output.='<td>'. tp_status_list('todopago_estado_offline') .'</td></tr>';
 
 		$output.='<tr><td colspan="2"><h4>Cart Customization</h4></td></tr>';
 		$output.='<tr><td>Store Country</td>';
@@ -118,114 +128,82 @@ $tplogger = new TodoPagoLogger();
 		$output.='<tr><td>Tipo de formulario de pago</td>';
 		$output.='<td>'. todopago_type_checkout() .'</td></tr>';
 		
+		$output.='<tr><td>Habilitar tiempo de duracion del formulario</td>';
+		$output.='<td>'. todopago_enabled_checkbox('todopago_form_timeout_enabled') .'<p class="description">si no se especifica un tiempo de duración se toma el valor por defecto de 1800000 milisegundos (30 minutos) </p></td></tr>';
+
+		$output.='<tr><td>Tiempo de duracion del formulario</td>';
+		$output.='<td><input id="todopago_form_timeout" name="todopago_form_timeout" type="number" value="'. get_option('todopago_form_timeout') .'"/></td></tr>';
+
 		$output.='<tr><td>Limite máximo de cuotas a ofrecer</td>';
 		$output.='<td>'. todopago_installments() .'<p class="description">Selecciona el máximo numero de cuotas para tus clientes.</p></td></tr>';
 
 		$output.='<tr><td>Habilitar maximo de cuotas</td>';
-		$output.='<td>'. todopago_enabled_installments() .'<p class="description">Select the max number of installments for your customers.</p></td></tr>';
-		
+		$output.='<td>'. todopago_enabled_checkbox('todopago_max_installments_enabled') .'<p class="description">Habilita el limite máximo de cuotas a ofrecer.</p></td></tr>';
+
+		$output.='<tr><td>Vaciar carrito cuando una transaccion sea rechazada</td>';
+		$output.='<td>'. todopago_enabled_checkbox('todopago_empty_cart_enabled') .'<p class="description">si está desactivado no limpiará el carrito de compras.</p></td></tr>';
+
 		$output.='<tr><td>URL Approved Payment</td>';
 		$output.='<td><input name="todopago_url_sucess" type="text" value="'. $url_sucess .'"/><p class="description">This is the URL where the customer is redirected if his payment is approved.</p></td></tr>';
 		
 		$output.='<tr><td>URL Pending Payment</td>';
 		$output.='<td><input name="todopago_url_pending" type="text" value="'. $url_pending .'"/><p class="description">This is the URL where the customer is redirected if his payment is in process.</p></td></tr>';
 		
+		$output.='<input type="hidden" name="wpnonce" id="wpnonce" value="'.tp_nonce().'" />';
+
+		$output.= '
+		<script>
+			var x = document.getElementsByName("user_defined_name[todopago]");
+			x[0].disabled = true;
+			console.log(x[0].disabled); 
+
+		</script>
+		';
+
+
 		include_once dirname(__FILE__)."/lib/view/credentialsjs.php";
 		
-		return $output;
-	
+		if (current_user_can('edit_plugins')) {
+			$return_values = $output;	
+		} else { 
+			$return_values = '<tr><td></td><td>No tiene permisos suficientes para editar este plugin</td></tr>';
+		}
+		return $return_values;
 	}
 
+	function tp_submit_todopago()
+	{	
+		$arr_inputs = ['todopago_environment', 'todopago_merchant_id_dev', 'todopago_merchant_id_prod', 'todopago_authorization_header_dev', 'todopago_authorization_header_prod', 'todopago_security_dev', 'todopago_security_prod', 'todopago_estado_inicio', 'todopago_estado_aprobacion', 'todopago_estado_rechazo', 'todopago_estado_offline', 'todopago_typecheckout', 'todopago_max_installments', 'todopago_url_sucess', 'todopago_url_pending', 'todopago_country'  ];
 
-
-	function submit_todopago()
-	{
-		if($_POST['todopago_environment'] != null) {
-			update_option('todopago_environment',trim($_POST['todopago_environment']));
-		}
-		
-		if ( isset($_POST['todopago_merchant_id_dev'])) {
-			update_option('todopago_merchant_id_dev',trim($_POST['todopago_merchant_id_dev']));
-		}
-		
-		if ( isset($_POST['todopago_merchant_id_prod'])) {
-			update_option('todopago_merchant_id_prod',trim($_POST['todopago_merchant_id_prod']));
-		}
-		
-		if($_POST['todopago_authorization_header_dev'] != null) {
-			update_option('todopago_authorization_header_dev',trim($_POST['todopago_authorization_header_dev']));
-		}
-		
-		if($_POST['todopago_authorization_header_prod'] != null) {
-			update_option('todopago_authorization_header_prod',trim($_POST['todopago_authorization_header_prod']));
+		foreach ($arr_inputs as $input_name){
+			if( isset($_POST[$input_name]) ) {
+				update_option($input_name,trim($_POST[$input_name]));
+			}	
 		}
 
-		if($_POST['todopago_security_dev'] != null) {
-			update_option('todopago_security_dev',trim($_POST['todopago_security_dev']));
+		if($_POST['todopago_form_timeout'] != null) {
+			update_option('todopago_form_timeout',trim($_POST['todopago_form_timeout']));
+		}else{ // si es null agrego 1800000 ms
+			update_option('todopago_form_timeout','1800000');	
 		}
 
-		if($_POST['todopago_security_prod'] != null) {
-			update_option('todopago_security_prod',trim($_POST['todopago_security_prod']));
+		$arr_checkboxes = ['todopago_form_timeout_enabled', 'todopago_empty_cart_enabled', 'todopago_max_installments_enabled'];
+	
+		foreach ($arr_checkboxes as $field){
+			if(	isset($_POST[$field]) && $_POST[$field] == TODOPAGO_CHECKBOX_ENABLED ) {
+				update_option($field,trim($_POST[$field]));
+			}else{
+				update_option($field, TODOPAGO_CHECKBOX_DISABLED ); 
+			}
 		}
 		
-		if($_POST['todopago_estado_inicio'] != null) {
-			update_option('todopago_estado_inicio',trim($_POST['todopago_estado_inicio']));
-		}
-		if($_POST['todopago_estado_aprobacion'] != null) {
-			update_option('todopago_estado_aprobacion',trim($_POST['todopago_estado_aprobacion']));
-		}
-		if($_POST['todopago_estado_rechazo'] != null) {
-			update_option('todopago_estado_rechazo',trim($_POST['todopago_estado_rechazo']));
-		}
-		if($_POST['todopago_estado_offline'] != null) {
-			update_option('todopago_estado_offline',trim($_POST['todopago_estado_offline']));
-		}
-
-		if($_POST['todopago_typecheckout'] != null) {
-			update_option('todopago_typecheckout',trim($_POST['todopago_typecheckout']));
-		}
-		
-		if($_POST['todopago_max_installments'] != null) {
-			update_option('todopago_max_installments',trim($_POST['todopago_max_installments']));
-		}
-
-		if(isset($_POST['todopago_max_installments_enabled']) && $_POST['todopago_max_installments_enabled'] == TODOPAGO_MAXINSTALLMENTS_ENABLED ) {
-			update_option('todopago_max_installments_enabled',trim($_POST['todopago_max_installments_enabled']));
-		}else{
-			update_option('todopago_max_installments_enabled', TODOPAGO_MAXINSTALLMENTS_DISABLED ); 
-		}	
-				
-		if($_POST['todopago_url_sucess'] != null) {
-			update_option('todopago_url_sucess',trim($_POST['todopago_url_sucess']));
-		}
-		
-		if($_POST['todopago_url_pending'] != null) {
-			update_option('todopago_url_pending',trim($_POST['todopago_url_pending']));
-		}
-		
-		if($_POST['todopago_country'] != null) {
-			update_option('todopago_country',trim($_POST['todopago_country']));
-		}
-
-
-		if($_POST['todopago_curcode'] != null) {
-			update_option('todopago_curcode',trim($_POST['todopago_curcode']));
-		}
-		
-
 		// si la tabla no esta creada la crea
 		todopago_create_transaction_table();
 
-
 		return true;
-	
 	}
-	//sessionid   $sessionid = null
-	// array( array('field'=> fieldName1 , 'value' => value1 ),	
-	//		  array('field'=> fieldName2 , 'value' => value2 ),
-	//		  ..	
-	//	)
-	function get_purchase_logs($params = array(array('field'=> "wp_wpsc_purchase_logs.id" , 'value' => '1')) ){
+
+	function tp_get_purchase_logs($params = array(array('field'=> "wp_wpsc_purchase_logs.id" , 'value' => '1')) ){
 		global $wpdb;
 		$where = ' 1=1 ';
 
@@ -238,31 +216,34 @@ $tplogger = new TodoPagoLogger();
         return $wpdb->get_row( $sql, ARRAY_A);
 	}
 
+
+
 	//Se ejecuta luego de Finalizar compra -> Realizar el pago
-    function first_step_todopago($sessionid = null){
+    function tp_first_step_todopago($sessionid = null){
         
         global $wpdb;
-              
+
         if(isset($_GET["second_step"])){
             //Second Step
-            second_step_todopago();
+            tp_second_step_todopago();
         }else{
         	
-        	$purchase_logs = get_purchase_logs( array(array('field' => 'sessionid', 'value' => $sessionid)) ); 
+        	$purchase_logs = tp_get_purchase_logs( array(array('field' => 'sessionid', 'value' => $sessionid)) ); 
         	
             $purchaseid = $purchase_logs['id'];
           
-        	$logger = _obtain_logger(phpversion(), 'wp-ecommerce', TODOPAGO_PLUGIN_VERSION, get_option('todopago_environment'), $sessionid, $purchaseid, true);
+        	$logger = _tp_obtain_logger(phpversion(), 'wp-ecommerce', TODOPAGO_PLUGIN_VERSION, get_option('todopago_environment'), $sessionid, $purchaseid, true);
             
-            prepare_order($purchase_logs, $logger);
+            tp_prepare_order($purchase_logs, $logger);
             
-            $paramsSAR = get_paydata($purchase_logs, $logger);
-            
-            $response_sar = call_sar($paramsSAR, $logger);
+            $paramsSAR = tp_get_paydata($purchase_logs, $logger);
+            $logger->info('params SAR '.json_encode($paramsSAR));
 
-            todopago_persistRequestKey($purchaseid, $response_sar["RequestKey"]);
+            $response_sar = tp_call_sar($paramsSAR, $logger);
 
-            todopago_insert_transaction($purchaseid, $paramsSAR, $response_sar);
+            tp_persistRequestKey($purchaseid, $response_sar["RequestKey"]);
+
+            tp_insert_transaction($purchaseid, $paramsSAR, $response_sar);
 
           //  custom_commerce($wpdb, $order, $paramsSAR, $response_sar);
 		    return $response_sar;                     	
@@ -271,20 +252,21 @@ $tplogger = new TodoPagoLogger();
     }
 
     //Persiste el RequestKey en la DB
-    function todopago_persistRequestKey($order_id, $request_key){
+    function tp_persistRequestKey($order_id, $request_key){
     //	update_option('request_key', $request_key);
         update_post_meta( $order_id, 'request_key', $request_key);
     }
 
-	function prepare_order($order, $logger){
+	function tp_prepare_order($order, $logger){
 	    $logger->info('first step');
-	    setOrderStatus($order,'estado_inicio');
+	    tp_setOrderStatus($order,'estado_inicio');
 	}
 
-	function loadStatus($status){
+	function tp_loadStatus($status){
 		global $wpsc_purchlog_statuses;
 
-		$return = null; 
+		$returnData = null; 
+
 		foreach ( $wpsc_purchlog_statuses as $statusData){
 			if ($statusData['internalname'] == $status){
 				$returnData = $statusData;
@@ -296,29 +278,42 @@ $tplogger = new TodoPagoLogger();
 	}
 
 
-	function setOrderStatus($order, $status){
+	function tp_setOrderStatus($order, $status){
         global $wpdb;
 
-        $statusData = loadStatus($status);
-
-        $qry = "UPDATE `".WPSC_TABLE_PURCHASE_LOGS."` SET processed = '".$statusData['order']."', notes = 'Payment Approved by Todo Pago' WHERE `id`= '".$order['id']."' LIMIT 1";
-
-        $wpdb->query($qry);  
+        $statusData = tp_loadStatus($status);
+        $order_id = filter_var( $order['id'] , FILTER_SANITIZE_NUMBER_INT);
+		
+		$wpdb->query( $wpdb->prepare( "UPDATE `".WPSC_TABLE_PURCHASE_LOGS."` SET processed = %s, notes = 'Payment Approved by Todo Pago' WHERE `id`= %d LIMIT 1",
+	        $statusData['order'] , $order_id ) ); 
 	}
 
+	function tp_update_amount($order, $amount_buyer){
+        global $wpdb;
+
+        $order_id = filter_var( $order['id'] , FILTER_SANITIZE_NUMBER_INT);
+		
+		// guardo el monto original 
+        update_post_meta( $order_id, 'originalamount', $order['totalprice']);
+
+		// actualizo monto total pagado
+		$wpdb->query( $wpdb->prepare( "UPDATE `".WPSC_TABLE_PURCHASE_LOGS."` SET totalprice = %s  WHERE `id`= %d LIMIT 1",
+	        $amount_buyer , $order_id ) ); 
+	}
 
 	function getUserInfo($order_id){
 		global $wpdb; 
 
 		$userinfo = array();
-		$usersql = "SELECT `".WPSC_TABLE_SUBMITED_FORM_DATA."`.value,
+		$usersql = $wpdb->prepare( "SELECT `".WPSC_TABLE_SUBMITED_FORM_DATA."`.value,
 		`".WPSC_TABLE_CHECKOUT_FORMS."`.`name`,
 		`".WPSC_TABLE_CHECKOUT_FORMS."`.`unique_name` FROM
 		`".WPSC_TABLE_CHECKOUT_FORMS."` LEFT JOIN
 		`".WPSC_TABLE_SUBMITED_FORM_DATA."` ON
 		`".WPSC_TABLE_CHECKOUT_FORMS."`.id =
 		`".WPSC_TABLE_SUBMITED_FORM_DATA."`.`form_id` WHERE
-		`".WPSC_TABLE_SUBMITED_FORM_DATA."`.`log_id`=".$order_id;
+		`".WPSC_TABLE_SUBMITED_FORM_DATA."`.`log_id`= %d",
+        $order_id);
 
 		foreach ($wpdb->get_results($usersql, ARRAY_A) as $item ){
 			$userinfo[$item['unique_name']] = $item['value'];
@@ -328,7 +323,7 @@ $tplogger = new TodoPagoLogger();
 	}
 
 
-	function get_paydata($order, $logger){
+	function tp_get_paydata($order, $logger){
         global $wpdb;
 
 		$userinfo = getUserInfo($order['id']);
@@ -342,11 +337,11 @@ $tplogger = new TodoPagoLogger();
 		        
         $home = home_url();
 
-        $arrayHome = split ("/", $home);
+        $arrayHome = explode("/", $home);
 
-        $return_URL_ERROR = $arrayHome[0].'//'."{$_SERVER['HTTP_HOST']}/{$_SERVER['REQUEST_URI']}".'?second_step=true';
+        $return_URL_ERROR = $arrayHome[0].'//'."{$_SERVER['HTTP_HOST']}/{$_SERVER['REQUEST_URI']}". '?' . http_build_query(array_merge($_GET, array('sessionid'=> $sessionid, 'second_step' => 'true')));
 
-        $return_URL_OK = get_option('todopago_url_sucess') . '?sessionid='.$sessionid.'&second_step=true' ;      
+        $return_URL_OK = get_option('todopago_url_sucess') . '?' . http_build_query(array_merge($_GET, array('sessionid'=> $sessionid, 'second_step' => 'true')));
 
         $esProductivo = get_option('todopago_environment') == "prod";
         
@@ -359,7 +354,6 @@ $tplogger = new TodoPagoLogger();
         $paramsSAR['comercio'] = $optionsSAR_comercio;
         $paramsSAR['operacion'] = $optionsSAR_operacion;
 
-        $logger->info('params SAR '.json_encode($paramsSAR));     
         return $paramsSAR;
     }
 
@@ -384,13 +378,18 @@ $tplogger = new TodoPagoLogger();
         if(get_option('todopago_max_installments_enabled') == 1){
             $arrayResult['MAXINSTALLMENTS']  =  strval(get_option('todopago_max_installments') );
         }
-       
-       return $arrayResult;
+       	
+       	// setea tiempo de duracion del form si es que se esta habilitada la opcion 
+        if(get_option('todopago_form_timeout_enabled') == 1){
+            $arrayResult['TIMEOUT']  =  strval(get_option('todopago_form_timeout') );
+        }
+       	
+       	return $arrayResult;
     }
 
-    function call_sar($paramsSAR, $logger){
+    function tp_call_sar($paramsSAR, $logger){
              
-        $logger->debug(call_sar);
+        $logger->debug(tp_call_sar);
         $esProductivo = get_option('todopago_environment') == "prod";
         $http_header = getHttpHeader();
         
@@ -421,7 +420,7 @@ $tplogger = new TodoPagoLogger();
 		
 		global $wpdb, $wpsc_cart;
 
-		$response_sar = first_step_todopago($sessionid );
+		$response_sar = tp_first_step_todopago($sessionid );
 		
 		$link = $response_sar['URL_Request'];			
 		$title = '';
@@ -439,22 +438,39 @@ $tplogger = new TodoPagoLogger();
 				
 				$img_banner = '<img src="'.$url_img.'" alt="Todo Pago" title="Todo Pago" />'; 
 
-				$button = '<form action="'.$link.'" method="post" id="todopago_payment_form"><input type="submit" class="button-alt" id="submit_todopago_payment_form" value="Pagar con TodoPago"><a class="button cancel" href="'. $_SERVER['HTTP_REFERER'] .'"> Cancelar orden </a></form>';
-			
-				$html = '<div style="position: relative; margin: 20px 0;" >';
-				$html .= '<div style="margin: 0 auto; width: 1080px; ">';
+				$button = '<form action="'.$link.'" method="post" id="todopago_payment_form">
+					<div style=" width: 500px;">
+ 						<div style="float:right;"><input type="submit" class="button-alt" id="submit_todopago_payment_form" value="Pagar con TodoPago">
+ 						</div>				
+ 						<div style="float:left;"><a class="button cancel" href="'. $_SERVER['HTTP_REFERER'] .'"> Cancelar orden </a>
+ 						</div>
+ 					</div>	
+ 				</form>';
+
+				$html = '<div style="width:50%; float:center; margin:0 auto;" >';
+				$html .= '<div style="margin: 0 auto; width: 100%; ">';
 				$html .= '<h3>' . $title . '</h3>';
 				$html .= '<p>' . $img_banner . '</p>';
 				$html .= $button;
 				$html .= '</div>';
 				$html .= '</div>';
+				$html .= '</br></br>';
 			}
 			else {
+
+                $purchase_logs = tp_get_purchase_logs( array(array('field' => 'sessionid', 'value' => $sessionid)) ); 
+
+                $purchaseid = $purchase_logs['id'];
+
+                $logger = _tp_obtain_logger(phpversion(), 'wp-ecommerce', TODOPAGO_PLUGIN_VERSION, get_option('todopago_environment'), $sessionid, $purchaseid, true);
+
+                $paramsSAR = tp_get_paydata($purchase_logs, $logger);
+
 			    $basename = plugin_basename(dirname(__FILE__));
 			  
 			    $baseurl = plugins_url();
-			   // print_r("{$baseurl}/{$basename}");
-			    $form_dir = "{$baseurl}/{$basename}/lib/view/formulario-hibrido";
+			   	$form_dir = "{$baseurl}/{$basename}/lib/view/formulario-hibrido";
+               
 			    $firstname = $paramsSAR['operacion']['CSSTFIRSTNAME'];
 			    $lastname = $paramsSAR['operacion']['CSSTLASTNAME'];
 			    $email = $paramsSAR['operacion']['CSSTEMAIL'];
@@ -463,41 +479,30 @@ $tplogger = new TodoPagoLogger();
 			    $prk = $response_sar['PublicRequestKey'];
 
 			    $home = home_url();
-			    $arrayHome = split ("/", $home); 
+			    $arrayHome = explode ("/", $home); 
+        
+        		$return_URL_ERROR = $arrayHome[0].'//'."{$_SERVER['HTTP_HOST']}{$_SERVER['REQUEST_URI']}". '?' . http_build_query(array_merge($_GET, array('sessionid'=> $sessionid, 'second_step' => 'true')));
+        
+		        $return_URL_OK = get_option('todopago_url_sucess') . '?' . http_build_query(array_merge($_GET, array('sessionid'=> $sessionid, 'second_step' => 'true')));
 
-			    $return_URL_ERROR = $arrayHome[0].'//'."{$_SERVER['HTTP_HOST']}/{$_SERVER['REQUEST_URI']}".'?sessionid='.$sessionid.'&second_step=true';
-        		$return_URL_OK = get_option('todopago_url_sucess') . '?sessionid='.$sessionid.'&second_step=true' ;
-			    
-			  //  $logger->info('ReturnURL '.$returnURL);
+			  	//$logger->info('ReturnURL '.$returnURL);
 			    $env_url = (get_option('todopago_environment') == "prod" ? TODOPAGO_FORMS_PROD : TODOPAGO_FORMS_TEST);
-			  	
+
+				add_filter('show_admin_bar', '__return_false');
+
 				header('Access-Control-Allow-Origin: *');
 				header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
 				header('Access-Control-Allow-Headers: Origin, X-Requested-With, Content-Type, Accept');
-			    get_header();			    
+			    get_header();
 			    require 'lib/view/formulario-hibrido/formulario.php';		
 				get_footer();
-				exit;
+				exit();
+				
 			}
 		}else{
-			_printErrorMsg();
+			echo _printErrorMsg();
 		}
 
-
-       /* 
-		switch($type_checkout):
-			case "Redirect":
-				// redirecciona al portal 
-				header("location: " . $link);
-				break;
-			
-			case "hibrido":
-					
-				break;
-			
-		endswitch;
-		*/
-		
 		//show page 
 		get_header();	
 		echo $html;
@@ -506,36 +511,38 @@ $tplogger = new TodoPagoLogger();
 	}
 
 	//Se ejecuta luego de pagar con el formulario
-    function second_step_todopago(){
+    function tp_second_step_todopago(){
 
-    	$purchase_logs = get_purchase_logs( array(array('field' => 'sessionid', 'value' =>  $_GET['sessionid'])) );
-         
+        global $wpsc_cart, $data_GAA; 
+
+		$sessionid = filter_var($_GET['sessionid'], FILTER_SANITIZE_STRING);
+    	$purchase_logs = tp_get_purchase_logs( array(array('field' => 'sessionid', 'value' =>  $sessionid)) );
+    	
         if(isset($purchase_logs['id'])){
             $order_id = $purchase_logs['id']; 
 
             if($purchase_logs['gateway'] == 'todopago'){      
-            	$logger = _obtain_logger(phpversion(), 'wp-ecommerce', TODOPAGO_PLUGIN_VERSION, get_option('todopago_environment'), $_GET['sessionid'], $order_id, true);;
-                $data_GAA = call_GAA($order_id, $logger);
+            	$logger = _tp_obtain_logger(phpversion(), 'wp-ecommerce', TODOPAGO_PLUGIN_VERSION, get_option('todopago_environment'), $_GET['sessionid'], $order_id, true);
+                $data_GAA = tp_call_GAA($order_id, $logger);
             
-                take_action($purchase_logs, $data_GAA, $logger);               
+                tp_take_action($purchase_logs, $data_GAA, $logger);               
             }
         }
 
     }
 
 
-    function call_GAA($order_id, $logger){ 
+    function tp_call_GAA($order_id, $logger){ 
 
             $logger->info('second step _ ORDER ID: '.$order_id);
-            $request_key = get_post_meta($order_id, 'request_key', true);
-           
+            $request_key = get_post_meta($order_id, 'request_key', true);       
             $esProductivo = get_option('todopago_environment') == "prod";
 
             $params_GAA = array (     
                 'Security'   => $esProductivo ? get_option('todopago_security_prod') : get_option('todopago_security_dev'),      
                 'Merchant'   => strval($esProductivo ? get_option('todopago_merchant_id_prod') : get_option('todopago_merchant_id_dev') ),     
                 'RequestKey' => $request_key,     
-                'AnswerKey'  => $_GET['Answer']
+                'AnswerKey'  => filter_var($_GET['Answer'], FILTER_SANITIZE_STRING)
             );
 
             $logger->info('params GAA '.json_encode($params_GAA));
@@ -545,7 +552,9 @@ $tplogger = new TodoPagoLogger();
             $logger->info("HTTP_HEADER: ".json_encode($http_header));
             $connector = new Sdk($http_header, get_option('todopago_environment')); 
 
-            $logger->info("PARAMETROS GAA: ".json_encode($params_GAA));
+           // $logger->info("PARAMETROS GAA: ".json_encode($params_GAA));
+            //$logger->info("PARAMETROS GAA: ".json_encode($params_GAA));
+
             $response_GAA = $connector->getAuthorizeAnswer($params_GAA);
             $logger->info('response GAA '.json_encode($response_GAA));
 
@@ -556,9 +565,9 @@ $tplogger = new TodoPagoLogger();
     }
 
 
-    function todopago_update_transaction($order, $data_GAA, $logger){
+    function tp_update_transaction($order, $data_GAA, $logger){
     	global $wpdb;
-    	$logger->info('todopago_update_transaction order_id:' . $order['id'] );
+    	$logger->info('tp_update_transaction order_id:' . $order['id'] );
     	$wpdb->update( 
 	        $wpdb->prefix.TODOPAGO_TABLE_TRANSACTION,
 	        array(
@@ -580,31 +589,48 @@ $tplogger = new TodoPagoLogger();
     }
 
 
-    function take_action($order, $data_GAA, $logger){
-	
-	    todopago_update_transaction($order, $data_GAA, $logger);
+    function tp_take_action($order, $data_GAA, $logger){
+		global $wpsc_cart, $data_GAA;
+        // hago un GAA o un getstatus 
+        $request_GAA = $data_GAA['response_GAA']['Payload']['Request'];
+        $request_GAA['FINANCIALCOST'] = $request_GAA['AMOUNTBUYER'] - $request_GAA['AMOUNT']; 
+
+
+
+	    tp_update_transaction($order, $data_GAA, $logger);
 
 	    if ($data_GAA['response_GAA']['StatusCode']== -1){
 	    	// seteo estado de orden aprobada
-			setOrderStatus($order, get_option('todopago_estado_aprobacion') );
+			tp_setOrderStatus($order, get_option('todopago_estado_aprobacion') );
+			tp_update_amount($order, $request_GAA['AMOUNTBUYER']);
+			$wpsc_cart->empty_cart();
 	    }else{
+          	if (get_option('todopago_empty_cart_enabled')){	$wpsc_cart->empty_cart(); } 
+
 	    	$message = '';
-	        setOrderStatus($order, get_option('todopago_estado_rechazo') );
-	          
+	    	if(isset($_GET['Error'])){
+	    		$message .= $_GET['Error'];
+    		}
+
+	        tp_setOrderStatus($order, get_option('todopago_estado_rechazo') );
+ 
 	        if(isset($data_GAA['response_GAA']['StatusMessage'])){
-	        	$message = $data_GAA['response_GAA']['StatusMessage'];	
+	        	$message .= $data_GAA['response_GAA']['StatusMessage'];
 	        }
-	        _printErrorMsg($message);
+	        echo _printErrorMsg($message);
 
 	    }
 	}
 
-	function _printErrorMsg($message=''){
-        echo '<div class="entry-content">Lo sentimos, ha ocurrido un error.'. 
-        	$message . '<a href="' . home_url() . '" class="wc-backward">Volver a la p&aacute;gina de inicio</a></div>'; 	
+
+	function _printErrorMsg($message=null){
+	if($message != null)
+	    	return "<script> window.addEventListener('load', alert('". $message ."'), false); </script>";
+
+	return "<script> window.addEventListener('load', alert('Ha ocurrido un eror en la operación, por favor, intente nuevamente'), false); </script>";
     }
 
-	function todopago_insert_transaction( $order_id, $paramsSAR, $response_sar){
+	function tp_insert_transaction( $order_id, $paramsSAR, $response_sar){
 		global $wpdb;
 		
 		$wpdb->insert(
@@ -621,14 +647,18 @@ $tplogger = new TodoPagoLogger();
 	}
 
 
-	function todopago_retorno(){
+	function tp_retorno(){
 		if( isset($_GET['second_step']) ){
-			second_step_todopago();
+			tp_second_step_todopago();
 		}
 	}
 
 
-	function todopago_environment_list(){
+	function tp_nonce() {
+		return wp_create_nonce( 'getCredentials');
+	}
+
+	function tp_environment_list(){
 		$environment = get_option('todopago_environment');
 		$options = array('test'=> 'Desarrollo' , 'prod'=>'Producción');
 		$show_environment_select = '<select name="todopago_environment">';
@@ -643,7 +673,7 @@ $tplogger = new TodoPagoLogger();
 	}
 
 
-	function todopago_segment_list(){
+	function tp_segment_list(){
 		$segment = get_option('todopago_segment');
 		$options = array('retail'=> 'Retail');
 		$show_segment_select = '<select name="todopago_segment">';
@@ -660,7 +690,7 @@ $tplogger = new TodoPagoLogger();
 
 
 
-	function todopago_status_list( $status_field = null)
+	function tp_status_list( $status_field = null)
 	{
 		global $wpsc_purchlog_statuses;
 
@@ -692,12 +722,12 @@ $tplogger = new TodoPagoLogger();
 	
 	
 		if (get_option('todopago_country') == null || get_option('todopago_country') == ''){
-			$todopago_country = 'MLA';        
+			$todopago_country = 'AR';        
 		} else {
 			$todopago_country = get_option('todopago_country');  
 		}
 		
-		$sites = array('MLA' =>'Argentina');
+		$sites = array('AR' =>'Argentina');
 		
 		$showsites= '<select name="todopago_country">';
 
@@ -764,6 +794,22 @@ $tplogger = new TodoPagoLogger();
 		return $showinstallment;
 	}
 
+	/*
+	*	$field is a field-name of form configuration 
+	*/
+	function todopago_enabled_checkbox($field){
+		
+		$showinstallment = '<input type="checkbox" name="'. $field.'" value="'.TODOPAGO_CHECKBOX_ENABLED.'" ';
+	
+		if (get_option($field) == TODOPAGO_CHECKBOX_ENABLED ){
+			$showinstallment .= ' checked ';        
+		} 
+
+		$showinstallment .= '/>';
+		
+		return $showinstallment;
+	}
+
 
 
 	function todopago_type_checkout(){
@@ -793,7 +839,7 @@ $tplogger = new TodoPagoLogger();
 		return $select_type_checkout;
 	}
 
-	function _obtain_logger(
+	function _tp_obtain_logger(
 		$php_version, 
 		$wpecommerce_version, 
 		$todopago_plugin_version, 
@@ -815,24 +861,24 @@ $tplogger = new TodoPagoLogger();
     }
 
 
-	function getSecurity(){
+	function tp_getSecurity(){
 		$environment = get_option('todopago_environment');
 		return ($environment == TODOPAGO_ENVIRONMENT_TEST)? get_option('todopago_security_dev'):get_option('todopago_security_prod');
 	}
 
-	function getMerchant(){
+	function tp_getMerchant(){
 		$environment = get_option('todopago_environment');
 		return ($environment == TODOPAGO_ENVIRONMENT_TEST)? get_option('todopago_merchant_id_dev'):get_option('todopago_merchant_id_prod');
 	}
 
 	function process_refund( $order_id, $amount = null, $total_refund=0 ){
 			$return_response ='';
-            $logger = _obtain_logger(phpversion(), 'wp-ecommerce', TODOPAGO_PLUGIN_VERSION, get_option('todopago_environment'), getMerchant(), $order_id, true);
+            $logger = _tp_obtain_logger(phpversion(), 'wp-ecommerce', TODOPAGO_PLUGIN_VERSION, get_option('todopago_environment'), tp_getMerchant(), $order_id, true);
 			$amount = filter_var( $amount, FILTER_SANITIZE_NUMBER_FLOAT, FILTER_FLAG_ALLOW_FRACTION );
             //configuración común a ambos servicios.
             $options_return = array(
-                    "Security" => getSecurity(),
-                    "Merchant" => getMerchant(),
+                    "Security" => tp_getSecurity(),
+                    "Merchant" => tp_getMerchant(),
                     "RequestKey" => get_post_meta($order_id, 'request_key', true)
             );
 
@@ -849,32 +895,48 @@ $tplogger = new TodoPagoLogger();
             }
 
 
-            if(empty($amount) || $amount == 0 ){
+            $order = tp_get_purchase_logs(array(array('field'=>WPSC_TABLE_PURCHASE_LOGS.'.id' , 'value' => $order_id )));
+
+	     	$totalAmount = get_post_meta($order_id, 'originalamount', true); 
+
+            if(empty($amount) || $amount == 0 || $amount > $totalAmount){
             	// throw new Exception("El monto esta vacio o es invalido.");
-            	return array('result' => 0 , 'message' => "El monto esta vacio, es cero o es invalido." );
+            	return array('result' => 0 , 'message' => "El monto es invalido. Ingrese un monto menor o igual a $". $totalAmount );
             }
 
             if($total_refund){
             	//Intento realizar la devolución
                 try {
+                    $logger->info("Parametros devolucion Total voidRequest : " . var_export($options_return ,true) );
                     $return_response = $connector->voidRequest($options_return);
                     $logger->info("Se hace devolucion Total voidRequest : " . var_export($return_response ,true) );
+                    // guardo monto devuelto
+                    $refunds_json = get_post_meta($order_id, 'refund', true); 
+    				$arr = json_decode($refunds_json, true); 
+                    $arr[] = array('amount' => $totalAmount , 'result' => $return_response['StatusCode'] );
+                  
+                    update_post_meta( $order_id, 'refund', json_encode($arr));
                 }
                 catch (Exception $e) {
                     $logger->error("Falló al consultar el servicio: ", $e);
-                	//throw new Exception("Falló al consultar el servicio");
-                	//echo '<p><font color="red">Falló al consultar el servicio.</font></p>';
+                	// guardo como metadato el monto devuelto
                     return array('result' => 0 , 'message' => "Falló al consultar el servicio:" . $e->getMessage() );
 
                 }
             }else{
                 $logger->info("Pedido de devolución por $amount pesos de la orden $order_id");
                 $options_return['AMOUNT'] = $amount;
-                $logger->debug("Params devolución: ".json_encode($options_return));
+                $logger->info("Params devolución: ".json_encode($options_return));
                 //Intento realizar la devolución
                 try {
                     $return_response = $connector->returnRequest($options_return);
                     $logger->info("Se hace devolucion Parcial returnRequest : " . var_export($return_response ,true) );
+                    
+                    $refunds_json = get_post_meta($order_id, 'refund', true); 
+    				$arr = json_decode($refunds_json, true); 
+                    $arr[] = array('amount' => $amount , 'result' => $return_response['StatusCode'] );
+           
+                    update_post_meta( $order_id, 'refund', json_encode($arr));
                 }
                 catch (Exception $e) {
                     $logger->error("Falló al consultar el servicio: ", $e);
@@ -936,7 +998,7 @@ $tplogger = new TodoPagoLogger();
 		return $_SERVER["REQUEST_URI"];
 	}
 	/*
-	*	verifica si la orden ya fue reembolsada en su totalidad 
+	*	verifica si la orden ya fue reembolsada en su totalidad
 	*/
 	function todopago_is_fully_refunded( $order_id , $total_price){
 		$amountRefunded = todo_pago_refunded_amount( $order_id );
@@ -951,82 +1013,75 @@ $tplogger = new TodoPagoLogger();
 
 
     function todo_pago_refunded_amount( $order_id ){
-    	$http_header = getHttpHeader();
-		$connector = new Sdk($http_header, get_option('todopago_environment'));
 
-		//opciones para el método getStatus 
-		$optionsGS = array('MERCHANT'=>getMerchant(),'OPERATIONID'=>$order_id);
-		$status = $connector->getStatus($optionsGS);
-		
+    	$refunds_json = get_post_meta($order_id, 'refund', true); 
+    	$refunds_arr = json_decode($refunds_json, true);
 
-		$amount  = $status['Operations']['AMOUNT'];
-		$refunds = $status['Operations']['REFUNDS'];
-		
-		$ref = 0 ;
-		if (is_array($refunds)){
-			foreach ($refunds as $refund) {
-				if (is_array($refund)){
-					foreach ($refund as $k => $value) {
-						if($k=='AMOUNT' && (!is_array($value)) ){
-							$ref = $ref + $value; 
-						}elseif( is_array($value)){
-							$ref = $ref + $value['AMOUNT'];
-						}
-
-					}
-				}	
-			}
-
-
-		} 
-
-
-		//print_r($ref); exit; 
-		return $ref;
+    	$total_refund = 0;
+	if(!empty($refunds_arr)) {
+    		foreach ($refunds_arr as $refund) {
+	    		if( $refund['result'] == TODOPAGO_DEVOLUCION_OK ){
+    				$total_refund += $refund['amount'];
+    			}
+	    	}
+    	}
+    	return $total_refund;
     }
 
 
 	function meta_box_todopago(){
 		// desde aca puedo llamar a las funciones de la orden y hacer la devolucion 
-		//$userinfo = getUserInfo($_REQUEST['id']);
-
-		$order = get_purchase_logs(array(array('field'=>WPSC_TABLE_PURCHASE_LOGS.'.id' , 'value' => $_REQUEST['id'])));
-
+		$id = filter_var($_REQUEST['id'], FILTER_SANITIZE_STRING); 
+		$order = tp_get_purchase_logs(array(array('field'=>WPSC_TABLE_PURCHASE_LOGS.'.id' , 'value' => $id )));
 		$totalAmount = $order['totalprice'];
-		
-		if( isset($_REQUEST['ref_part']) ){
+		$originalamount = get_post_meta($order['id'], 'originalamount', true);
+		$financial_cost = $totalAmount - $originalamount; 
+	
+		if( isset($_REQUEST['ref_total']) && !$_REQUEST['ref_total'] ){
 			// partial refund 	
-			$result = process_refund( $_REQUEST['id'], $_REQUEST['partial_refund'] );	
+			$partial_refund = filter_var($_REQUEST['partial_refund'], FILTER_SANITIZE_STRING); 
+			$result = process_refund( $id, $partial_refund );		
 		}
 
-		if( isset($_REQUEST['ref_total']) ){
+		if( isset($_REQUEST['ref_total']) && $_REQUEST['ref_total'] == 1 ){
 			// total refund
-			$result = process_refund( $_REQUEST['id'], $totalAmount , 1);	
+			$result = process_refund( $id, $totalAmount , 1);		
 		}
 
 		if (isset( $result['result']) ){
 			$message = ''; 
+			$result_message = filter_var($result['message'], FILTER_SANITIZE_STRING);
 			switch ($result['result']) {
 				case '1':
 					# success
-					$message = '<p class="widefat" ><font color="green">' . $result['message'] . '</font></p>';
+					$message = '<p class="widefat" ><font color="green">' . $result_message . '</font></p>';
 					break;
 				
 				case '0':
 					# error
-					$message = '<p class="widefat" ><font color="red">' . $result['message'] . '</font></p>';
+					$message = '<script> alert("' . $result_message . '"); </script>';
 					break;
 			}
 
 			echo $message;
 
 		}
-	
-
-
+		
 		?>
+			<table class="widefat" >
+				<tbody>
+				<tr class="wpsc_purchaselog_start_totals"> 
+					<td colspan="5" style="width: 460px;"></td><td style="width: 100px; padding-right: 2px;">Otros Cargos:</td><td style="text-align: left;"><?php echo "$".$financial_cost; ?></td>
+				</tr>
+				<tr> 
+					<td colspan="5" style="width: 460px;"></td><td style="width: 100px; padding-right: 2px;">Costo Total:</td><td style="text-align: left;"> <?php echo "$" . $totalAmount; ?></td>
+				</tr>
+				</tbody>
+			</table>	
+
+
 			<div>
-			<form method="post" action="<?php echo wp_get_request_uri() . '&ref_part=1'; ?>" >
+			<form method="post" action="<?php echo get_refund_url(0); ?>" >
 			<table class="widefat" cellspacing="1">
 				<tr> 
 					<td><h3 class="hndle">Reembolsar con Todo Pago</h3></td>
@@ -1034,9 +1089,8 @@ $tplogger = new TodoPagoLogger();
 				<tr>
 					<td>Cantidad Devuelta : $<?php echo number_format(todo_pago_refunded_amount($_REQUEST['id']), 2, '.', ''); ?></td><td></td>	
 				</tr>
-				<?php if ( todopago_is_fully_refunded($_REQUEST['id'] , $totalAmount ) ){ ?><tr><td ><font color="red">Reembolsado Totalmente</font></td></tr><?php } else { ?>
 				<tr>
-					<td>Devolucion Parcial</td>
+					<td>Devolucion Parcial - (el monto no debe superar $ <?php echo $originalamount;  ?>  )</td>
 				</tr>
 				<tr>
 					<td><input id="partial_refund" type="text" name="partial_refund" value="0.00" />
@@ -1045,9 +1099,8 @@ $tplogger = new TodoPagoLogger();
 					</td>
 				</tr>
 				<tr>
-					<td><button class="button" type="button" onclick="window.location='<?php echo wp_get_request_uri() . '&ref_total=1'; ?>'" >Reembolsar todo</button></td>
+					<td><button class="button" type="button" onclick="window.location='<?php echo get_refund_url(1); ?>'" >Reembolsar todo</button></td>
 				</tr>
-				<?php }	?>
 			</table>
 			</form>
 			</div>
@@ -1064,13 +1117,117 @@ $tplogger = new TodoPagoLogger();
 			include_once dirname(__FILE__)."/lib/view/status.php";
 	}
 
-/*	function my_init() {
-		wp_deregister_script('jquery');
-		wp_register_script('jquery', 'http://ajax.googleapis.com/ajax/libs/jquery/1.3.2/jquery.min.js', false, '1.3.2');
-		wp_enqueue_script('jquery');
+	function get_refund_url($ref_total=0){
+		$arr_url = explode('?', wp_get_request_uri()); 
+		$_REQUEST['ref_total'] = $ref_total;
+
+		return add_query_arg( $_REQUEST , $arr_url[0] );
 	}
-	*/
+
+    function getCredentials(){
+        if((isset($_POST['user']) && !empty($_POST['user'])) &&  (isset($_POST['password']) && !empty($_POST['password']))){
+
+        	if(wp_verify_nonce( $_REQUEST['_wpnonce'], "getCredentials" ) == false) {
+                $response = array( 
+                    "mensajeResultado" => "Error de autorizacion"
+                );  
+                echo json_encode($response);
+                exit;
+            }
+
+            $userArray = array(
+                "user" => trim($_POST['user']), 
+                "password" => trim($_POST['password'])
+            );
+
+            $http_header = array();
+
+            //ambiente developer por defecto 
+            $mode = "test";
+            if($_POST['mode'] == "prod"){
+                $mode = "prod";
+            }
+
+            try {
+                $connector = new \TodoPago\Sdk($http_header, $mode);
+                $userInstance = new \TodoPago\Data\User($userArray);
+                $rta = $connector->getCredentials($userInstance);
+
+                $security = explode(" ", $rta->getApikey()); 
+                $response = array( 
+                    "codigoResultado" => 1,
+                    "merchandid" => $rta->getMerchant(),
+                    "apikey" => $rta->getApikey(),
+                    "security" => $security[1]
+                );
+            }catch(\TodoPago\Exception\ResponseException $e){
+                $response = array(
+                    "mensajeResultado" => $e->getMessage()
+                );
+            }catch(\TodoPago\Exception\ConnectionException $e){
+                $response = array(
+                    "mensajeResultado" => $e->getMessage()
+                );
+            }catch(\TodoPago\Exception\Data\EmptyFieldException $e){
+                $response = array(
+                    "mensajeResultado" => $e->getMessage()
+                );
+            }
+            echo json_encode($response);
+        }else{
+            $response = array( 
+                "mensajeResultado" => "Ingrese usuario y contraseña de Todo Pago"
+            );  
+            echo json_encode($response);
+        }
+        exit;
+    }
+
+    function format_puchase($args){
+        global $data_GAA;
+        // hago un GAA o un getstatus 
+        $request_GAA = $data_GAA['response_GAA']['Payload']['Request'];
+        $request_GAA['FINANCIALCOST'] = $request_GAA['AMOUNTBUYER'] - $request_GAA['AMOUNT']; 
+        
+        $args['total_price'] = (string)  'Total: $' . $request_GAA['AMOUNTBUYER'];
+        $args['total'] = (string) $request_GAA['AMOUNTBUYER'];
+        $args['otros_cargos'] = (string) 'Costo Financiero: $'.$request_GAA['FINANCIALCOST'];  
+        
+        return $args;
+    }
+
+    function format_order_list($table_args){
+        global $data_GAA;
+        
+        $purchase_logs = tp_get_purchase_logs( array(array('field' => 'sessionid', 'value' => $_REQUEST['sessionid'])) ); 
+
+        $totalprice = $purchase_logs['totalprice'];
+        $request_GAA = $data_GAA['response_GAA']['Payload']['Request']; 
+        $financial_cost = $request_GAA['AMOUNTBUYER'] - $totalprice; 
+
+        $table_args['headings']['Otros Cargos'] = 'right';
+        $table_args['rows'][0][]= (string) $financial_cost;
+
+        return $table_args;
+    }
+
+
+/*  function my_init() {
+        wp_deregister_script('jquery');
+        wp_register_script('jquery', 'http://ajax.googleapis.com/ajax/libs/jquery/1.3.2/jquery.min.js', false, '1.3.2');
+        wp_enqueue_script('jquery');
+    }
+    */
 
 //add_action('init', 'my_init');
-add_action('init', 'todopago_retorno');
+add_action('init', 'tp_retorno');
 add_action( 'wpsc_purchlogitem_metabox_start', 'meta_box_todopago', 8 );
+
+
+add_action('wp_ajax_getCredentials', 'getCredentials' ); // executed when logged in
+add_action('wp_ajax_nopriv_getCredentials', 'getCredentials' ); 
+
+
+add_filter("wpsc_purchase_log_notification_common_args", "format_puchase");
+add_filter("wpsc_purchase_log_notification_product_table_args","format_order_list");
+
