@@ -59,3 +59,34 @@
 .margin-form{
 	margin:0 0 0 40px !important;
 }
+
+.not-input-max{
+    width: inherit;
+}
+
+.float-input-right{
+    float: right;
+}
+
+td{
+    width: 50%;
+    border: 0px;
+}
+
+table{
+	border:0px;
+}
+
+input{
+    width:95%;
+}
+
+input,select{
+    margin-bottom:5px; 
+}
+
+label{
+    color:red;
+}
+
+

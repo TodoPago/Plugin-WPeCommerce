@@ -3,7 +3,7 @@
 Plugin Name: TODO PAGO
 Plugin URI:  https://github.com/TodoPago/Plugin-WPeCommerce
 Description: Plug in para la integración con gateway de pago Todo Pago
-Version:     1.2.0
+Version:     1.3.0
 Author:      http://www.softtek.com/
 Author URI:  http://www.softtek.com/
 License:     GPL2
@@ -17,8 +17,8 @@ define('TODOPAGO_PLUGIN_VERSION','1.2.0');
 define('TP_FORM_EXTERNO', 'ext');
 define('TP_FORM_HIBRIDO', 'hib');
 define('TODOPAGO_DEVOLUCION_OK', 2011);
-define('TODOPAGO_FORMS_PROD','https://forms.todopago.com.ar');
-define('TODOPAGO_FORMS_TEST','https://developers.todopago.com.ar');
+define('TODOPAGO_FORMS_PROD','https://forms.todopago.com.ar/resources/v2/TPBSAForm.min.js');
+define('TODOPAGO_FORMS_TEST','https://developers.todopago.com.ar/resources/v2/TPBSAForm.min.js');
 define('TODOPAGO_ENVIRONMENT_TEST', 'test');
 define('TODOPAGO_ENVIRONMENT_PROD', 'prod'); 
 define('TODOPAGO_TABLE_TRANSACTION', 'todopago_transaction');
@@ -52,23 +52,28 @@ require_once (dirname(__FILE__) . '/lib/vendor/autoload.php');
 require_once(dirname(__FILE__) .'/lib/logger.php');
 //require_once(dirname(__FILE__) .'/lib/TodoPago/lib/Sdk.php');
 require_once(dirname(__FILE__).'/lib/ControlFraude/ControlFraudeFactory.php');
+require_once(dirname(__FILE__).'/lib/db/AdressBook.php');
 
 global $tplogger; 
 $tplogger = new TodoPagoLogger();
+//creo la base que administra las direcciones formateadas por Google Maps
+global $adressbook;
+$adressbook=new AdressBook();
+$adressbook->createTable();
 
 	function form_todopago()
 	{   
-
-
 		$url_sucess = (get_option('todopago_url_sucess') != '')? get_option('todopago_url_sucess'):get_site_url(); 
 		$url_pending = (get_option('todopago_url_pending') != '')?get_option('todopago_url_pending'):get_site_url();
-
 
 		$output.='<tr><td>Ambiente:</td>'; 
 		$output.='<td>' .tp_environment_list(). '</td></tr>';
 
 		$output.='<tr><td>Tipo de segmento:</td>'; 
 		$output.='<td>' .tp_segment_list(). '</td></tr>';
+                
+                $output.='<tr><td>Validación Gmaps</td>';
+		$output.='<td>'. todopago_enabled_checkbox('todopago_gmaps_validation') .'<p class="description">Validar campos con Google Maps</p></tr>';
 
 		$output.='<tr><td colspan="2"><h4>Credenciales ambiente desarrollo</h4>
 		<p>Obtene los datos de configuracion para tu negocio ingresando con tu cuenta de Todo Pago:</p>';   
@@ -89,7 +94,7 @@ $tplogger = new TodoPagoLogger();
 
 		$output.='<tr><td colspan="2"><h4>Credenciales ambiente producción</h4>	
 				  <p>Obtene los datos de configuracion para tu negocio ingresando con tu cuenta de Todo Pago:</p>';
-        $output.= '<tr><td>Mail de TodoPago:</td><td><input id="mail_prod"  name="mail_prod" type="text" value="" /></td></tr>';
+                $output.= '<tr><td>Mail de TodoPago:</td><td><input id="mail_prod"  name="mail_prod" type="text" value="" /></td></tr>';
 		$output.= '<tr><td>Password:</td><td><input id="pass_prod" name="pass_prod" type="password" value="" /></td></tr>';
 		$output.='<tr><td colspan="2"><a id="btn-credentials" class="button" onclick="credentials('."'".'prod'."'".')" >obtener credenciales</a></td></tr>';
 
@@ -173,7 +178,7 @@ $tplogger = new TodoPagoLogger();
 
 	function tp_submit_todopago()
 	{	
-		$arr_inputs = ['todopago_environment', 'todopago_merchant_id_dev', 'todopago_merchant_id_prod', 'todopago_authorization_header_dev', 'todopago_authorization_header_prod', 'todopago_security_dev', 'todopago_security_prod', 'todopago_estado_inicio', 'todopago_estado_aprobacion', 'todopago_estado_rechazo', 'todopago_estado_offline', 'todopago_typecheckout', 'todopago_max_installments', 'todopago_url_sucess', 'todopago_url_pending', 'todopago_country'  ];
+		$arr_inputs = ['todopago_environment','todopago_gmaps_validation', 'todopago_merchant_id_dev', 'todopago_merchant_id_prod', 'todopago_authorization_header_dev', 'todopago_authorization_header_prod', 'todopago_security_dev', 'todopago_security_prod', 'todopago_estado_inicio', 'todopago_estado_aprobacion', 'todopago_estado_rechazo', 'todopago_estado_offline', 'todopago_typecheckout', 'todopago_max_installments', 'todopago_url_sucess', 'todopago_url_pending', 'todopago_country'  ];
 
 		foreach ($arr_inputs as $input_name){
 			if( isset($_POST[$input_name]) ) {
@@ -187,7 +192,7 @@ $tplogger = new TodoPagoLogger();
 			update_option('todopago_form_timeout','1800000');	
 		}
 
-		$arr_checkboxes = ['todopago_form_timeout_enabled', 'todopago_empty_cart_enabled', 'todopago_max_installments_enabled'];
+		$arr_checkboxes = ['todopago_form_timeout_enabled', 'todopago_empty_cart_enabled', 'todopago_max_installments_enabled','todopago_gmaps_validation'];
 	
 		foreach ($arr_checkboxes as $field){
 			if(	isset($_POST[$field]) && $_POST[$field] == TODOPAGO_CHECKBOX_ENABLED ) {
@@ -324,37 +329,37 @@ $tplogger = new TodoPagoLogger();
 
 
 	function tp_get_paydata($order, $logger){
-        global $wpdb;
+            global $wpdb;
 
-		$userinfo = getUserInfo($order['id']);
+            $userinfo = getUserInfo($order['id']);
 
-		// se crea una instancia de ControlFraude.php
-        $controlFraude = ControlFraudeFactory::get_ControlFraude_extractor('Retail', $order, $userinfo);
-       	
-        $datosCs = $controlFraude->getDataCF();
+            // se crea una instancia de ControlFraude.php
+            $controlFraude = ControlFraudeFactory::get_ControlFraude_extractor('Retail', $order, $userinfo);
 
-        $sessionid = $order['sessionid'];
-		        
-        $home = home_url();
+            $datosCs = $controlFraude->getDataCF();
 
-        $arrayHome = explode("/", $home);
+            $sessionid = $order['sessionid'];
 
-        $return_URL_ERROR = $arrayHome[0].'//'."{$_SERVER['HTTP_HOST']}/{$_SERVER['REQUEST_URI']}". '?' . http_build_query(array_merge($_GET, array('sessionid'=> $sessionid, 'second_step' => 'true')));
+            $home = home_url();
 
-        $return_URL_OK = get_option('todopago_url_sucess') . '?' . http_build_query(array_merge($_GET, array('sessionid'=> $sessionid, 'second_step' => 'true')));
+            $arrayHome = explode("/", $home);
 
-        $esProductivo = get_option('todopago_environment') == "prod";
-        
-        $optionsSAR_comercio = getOptionsSARComercio($esProductivo, $return_URL_OK,$return_URL_ERROR);
-        
-        $optionsSAR_operacion = getOptionsSAROperacion($esProductivo, $order);
-              
-        $optionsSAR_operacion = array_merge_recursive($optionsSAR_operacion, $datosCs);
- 
-        $paramsSAR['comercio'] = $optionsSAR_comercio;
-        $paramsSAR['operacion'] = $optionsSAR_operacion;
+            $return_URL_ERROR = $arrayHome[0].'//'."{$_SERVER['HTTP_HOST']}{$_SERVER['REQUEST_URI']}". '?' . http_build_query(array_merge($_GET, array('sessionid'=> $sessionid, 'second_step' => 'true')));
 
-        return $paramsSAR;
+            $return_URL_OK = get_option('todopago_url_sucess') . '?' . http_build_query(array_merge($_GET, array('sessionid'=> $sessionid, 'second_step' => 'true')));
+
+            $esProductivo = get_option('todopago_environment') == "prod";
+
+            $optionsSAR_comercio = getOptionsSARComercio($esProductivo, $return_URL_OK,$return_URL_ERROR);
+
+            $optionsSAR_operacion = getOptionsSAROperacion($esProductivo, $order);
+
+            $optionsSAR_operacion = array_merge_recursive($optionsSAR_operacion, $datosCs);
+
+            $paramsSAR['comercio'] = $optionsSAR_comercio;
+            $paramsSAR['operacion'] = $optionsSAR_operacion;
+
+            return $paramsSAR;
     }
 
     function getOptionsSARComercio($esProductivo, $return_URL_OK, $return_URL_ERROR){
@@ -388,26 +393,56 @@ $tplogger = new TodoPagoLogger();
     }
 
     function tp_call_sar($paramsSAR, $logger){
-             
+        $md5Billing = null;
+        $md5Shipping = null;
+        $paydata_comercial = $paramsSAR['comercio'];
+        $paydata_operation = $paramsSAR['operacion'];//acá estan los datos de control de fraude
+        
         $logger->debug(tp_call_sar);
         $esProductivo = get_option('todopago_environment') == "prod";
+        $useGmaps=get_option("todopago_gmaps_validation")==1;
         $http_header = getHttpHeader();
         
         $logger->debug("http header: ".json_encode($http_header));
+        
+/*        if($useGmaps){//si uso gmaps,valido los datos de paydata
+            $md5Billing = SAR_hasher($paydata_operation, 'billing');
+            $md5Shipping = SAR_hasher($paydata_operation, 'shipping');
+            $gMapsValidator = getGoogleMapsValidator($md5Billing, $md5Shipping);
+        }
+        */
         $connector = new Sdk($http_header, get_option('todopago_environment'));
         
         $logger->debug("Connector: ".json_encode($connector));
-        $response_sar = $connector->sendAuthorizeRequest($paramsSAR['comercio'], $paramsSAR['operacion']);
+        
+/*        if($useGmaps){
+            if(isset($gMapsValidator)){
+                $connector->setGoogleClient($gMapsValidator);
+            }else{
+                $paydata_operation = getAddressbookData($paydata_operation,$md5Billing,$md5Shipping);
+            }
+        }*/
+        
+        return do_sar($connector,$paydata_comercial,$paydata_operation,$logger,$http_header,$gMapsValidator,$md5Billing,$md5Shipping);
+    }
+    
+    function do_sar($connector,$paydata_comercial,$paydata_operation,$logger,$http_header,$gMapsValidator,$md5Billing, $md5Shipping){
+        $response_sar = $connector->sendAuthorizeRequest($paydata_comercial,$paydata_operation);
         $logger->info('response SAR '.json_encode($response_sar));
 
-        if($response_sar["StatusCode"] == 702 && !empty($http_header) && !empty($paramsSAR['comercio']['Merchant']) && !empty($paramsSAR['comercio']['Security'])){
-            $response_sar = $connector->sendAuthorizeRequest($paramsSAR['comercio'], $paramsSAR['operacion']);
+        if($response_sar["StatusCode"] == 702 && !empty($http_header) && !empty($paydata_comercial['Merchant']) && !empty($paydata_comercial['Security'])){
+            $response_sar = $connector->sendAuthorizeRequest($paydata_comercial,$paydata_operation);
             $logger->info('reintento');
             $logger->info('response SAR '.json_encode($response_sar));
         }
 
+/*        if(isset($gMapsValidator)){
+            setAddressBookData($paydata_operation,$connector->getGoogleClient()->getFinalAddress(), $md5Billing, $md5Shipping);            
+        }
+*/
         return $response_sar;
     }
+    
 
  	function getHttpHeader(){
         $esProductivo = get_option('todopago_environment') == "prod";
@@ -458,45 +493,45 @@ $tplogger = new TodoPagoLogger();
 			}
 			else {
 
-                $purchase_logs = tp_get_purchase_logs( array(array('field' => 'sessionid', 'value' => $sessionid)) ); 
+                            $purchase_logs = tp_get_purchase_logs( array(array('field' => 'sessionid', 'value' => $sessionid)) ); 
 
-                $purchaseid = $purchase_logs['id'];
+                            $purchaseid = $purchase_logs['id'];
 
-                $logger = _tp_obtain_logger(phpversion(), 'wp-ecommerce', TODOPAGO_PLUGIN_VERSION, get_option('todopago_environment'), $sessionid, $purchaseid, true);
+                            $logger = _tp_obtain_logger(phpversion(), 'wp-ecommerce', TODOPAGO_PLUGIN_VERSION, get_option('todopago_environment'), $sessionid, $purchaseid, true);
 
-                $paramsSAR = tp_get_paydata($purchase_logs, $logger);
+                            $paramsSAR = tp_get_paydata($purchase_logs, $logger);
 
 			    $basename = plugin_basename(dirname(__FILE__));
 			  
 			    $baseurl = plugins_url();
-			   	$form_dir = "{$baseurl}/{$basename}/lib/view/formulario-hibrido";
+                            $form_dir = "{$baseurl}/{$basename}/lib/view/formulario-hibrido";
                
 			    $firstname = $paramsSAR['operacion']['CSSTFIRSTNAME'];
 			    $lastname = $paramsSAR['operacion']['CSSTLASTNAME'];
+                            $full_name=$firstname." ".$lastname;
 			    $email = $paramsSAR['operacion']['CSSTEMAIL'];
 			    $merchant = $paramsSAR['operacion']['MERCHANT'];
 			    $amount = $paramsSAR['operacion']['CSPTGRANDTOTALAMOUNT'];
 			    $prk = $response_sar['PublicRequestKey'];
-
 			    $home = home_url();
 			    $arrayHome = explode ("/", $home); 
         
-        		$return_URL_ERROR = $arrayHome[0].'//'."{$_SERVER['HTTP_HOST']}{$_SERVER['REQUEST_URI']}". '?' . http_build_query(array_merge($_GET, array('sessionid'=> $sessionid, 'second_step' => 'true')));
+                            $return_URL_ERROR = $arrayHome[0].'//'."{$_SERVER['HTTP_HOST']}{$_SERVER['REQUEST_URI']}". '?' . http_build_query(array_merge($_GET, array('sessionid'=> $sessionid, 'second_step' => 'true')));
         
-		        $return_URL_OK = get_option('todopago_url_sucess') . '?' . http_build_query(array_merge($_GET, array('sessionid'=> $sessionid, 'second_step' => 'true')));
+                            $return_URL_OK = get_option('todopago_url_sucess') . '?' . http_build_query(array_merge($_GET, array('sessionid'=> $sessionid, 'second_step' => 'true')));
 
-			  	//$logger->info('ReturnURL '.$returnURL);
-			    $env_url = (get_option('todopago_environment') == "prod" ? TODOPAGO_FORMS_PROD : TODOPAGO_FORMS_TEST);
+                            //$logger->info('ReturnURL '.$returnURL);
+			    $url_form = (get_option('todopago_environment') == "prod" ? TODOPAGO_FORMS_PROD : TODOPAGO_FORMS_TEST);
 
-				add_filter('show_admin_bar', '__return_false');
+                            add_filter('show_admin_bar', '__return_false');
 
-				header('Access-Control-Allow-Origin: *');
-				header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-				header('Access-Control-Allow-Headers: Origin, X-Requested-With, Content-Type, Accept');
+                            header('Access-Control-Allow-Origin: *');
+                            header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+                            header('Access-Control-Allow-Headers: Origin, X-Requested-With, Content-Type, Accept');
 			    get_header();
 			    require 'lib/view/formulario-hibrido/formulario.php';		
-				get_footer();
-				exit();
+                            get_footer();
+                            exit();
 				
 			}
 		}else{
@@ -609,13 +644,13 @@ $tplogger = new TodoPagoLogger();
 
 	    	$message = '';
 	    	if(isset($_GET['Error'])){
-	    		$message .= $_GET['Error'];
+	    		$message = $_GET['Error'];
     		}
 
 	        tp_setOrderStatus($order, get_option('todopago_estado_rechazo') );
  
 	        if(isset($data_GAA['response_GAA']['StatusMessage'])){
-	        	$message .= $data_GAA['response_GAA']['StatusMessage'];
+	        	$message = $data_GAA['response_GAA']['StatusMessage'];
 	        }
 	        echo _printErrorMsg($message);
 
@@ -672,7 +707,6 @@ $tplogger = new TodoPagoLogger();
 		return $show_environment_select;
 	}
 
-
 	function tp_segment_list(){
 		$segment = get_option('todopago_segment');
 		$options = array('retail'=> 'Retail');
@@ -687,8 +721,21 @@ $tplogger = new TodoPagoLogger();
 		return $show_segment_select;
 
 	}
+        
+        function tp_gmaps_validation(){
+		$gmaps_val = get_option('todopago_gmaps_validation');
+		$options = array('SI'=> 'SI','NO'=> 'NO');
+		$show_gmaps_val_select = '<select name="todopago_gmaps_validation">';
 
+		foreach ($options as $k => $val){
+			$selected = ($k == $environment )? ' selected="selected" ':'';
+	    	$show_gmaps_val_select .= '<option value="'.$k.'" '.$selected.' >'.$val.'</option>';
+		}
+		$show_gmaps_val_select .= '</select>';
 
+		return $show_gmaps_val_select;
+
+	}
 
 	function tp_status_list( $status_field = null)
 	{
@@ -1209,6 +1256,102 @@ $tplogger = new TodoPagoLogger();
         $table_args['rows'][0][]= (string) $financial_cost;
 
         return $table_args;
+    }
+    
+    function getGoogleMapsValidator($md5Billing, $md5Shipping) //Instancia Google en caso de no encontrar la ubicación a cargar en la tabla
+    {   
+        global $adressbook;
+        
+        if (empty($adressbook->findMd5($md5Billing)) || empty($adressbook->findMd5($md5Shipping))){        
+            return new TodoPago\Client\Google();
+        }
+        else
+            return null;
+    }
+        
+    function SAR_hasher($paramsSAR, $tipoDeCompra)
+    {
+        global $tplogger;
+  
+        if($tipoDeCompra === 'billing')
+            $arrayCompra = array('CSBTSTREET1' => 1, 'CSBTSTATE' => 2, 'CSBTCITY' => 3, 'CSBTCOUNTRY' => 3, 'CSBTPOSTALCODE' => 5);
+            elseif ($tipoDeCompra === 'shipping')
+            $arrayCompra = array('CSSTSTREET1' => 1, 'CSSTSTATE' => 2, 'CSSTCITY' => 3, 'CSSTCOUNTRY' => 3, 'CSSTPOSTALCODE' => 5);
+            else {
+                    $tplogger->error("No se recibió un input válido en el array de SAR_hasher()");
+                    $arrayCompra = array('CSSTSTREET1' => 1, 'CSSTSTATE' => 2, 'CSSTCITY' => 3, 'CSSTCOUNTRY' => 3, 'CSSTPOSTALCODE' => 5);
+            }
+            return md5(implode(",", array_intersect_key($paramsSAR, $arrayCompra)));//convierte un array en string separados por comas y lo pasa a md5
+    }
+        
+    function setAddressBookData($originalData,$gResponse,$md5Billing,$md5Shipping)
+    {   
+        $opBilling = $gResponse['billing'];
+        $opShipping = $gResponse['shipping'];
+
+        recordAdressValidator($originalData,$opBilling,$md5Billing,"B");
+
+        if($md5Billing !== $md5Shipping){  
+            recordAdressValidator($originalData,$opShipping,$md5Shipping,"S");
+        }
+    }
+        
+    function getAddressbookData($operationData, $md5Billing, $md5Shipping) //rellena los datos de la operación con la info almacenada en nuestra agenda
+    {
+        global $adressbook;
+        
+        $arrayBilling = $adressbook->getData($md5Billing);
+        $arrayShipping = $adressbook->getData($md5Shipping);
+
+        if (!empty($arrayBilling)) {
+                $operationData['CSBTSTREET1'] = $arrayBilling->street;
+                $operationData['CSBTSTATE'] = $arrayBilling->state;
+                $operationData['CSBTCITY'] = $arrayBilling->city;
+                $operationData['CSBTCOUNTRY'] = $arrayBilling->country;
+                $operationData['CSBTPOSTALCODE'] = $arrayBilling->postal;
+        }
+        if (!empty($arrayBilling)) {
+                $operationData['CSSTSTREET1'] = $arrayShipping->street;
+                $operationData['CSSTSTATE'] = $arrayShipping->state;
+                $operationData['CSSTCITY'] = $arrayShipping->city;
+                $operationData['CSSTCOUNTRY'] = $arrayShipping->country;
+                $operationData['CSSTPOSTALCODE'] = $arrayShipping->postal;
+        }
+        return $operationData;
+    }
+                
+   function recordAdressValidator($originalData,$gResponse,$md5,$type){
+        
+       global $adressbook;
+       
+       if(!empty($gResponse)){//sí la respuesta de Google no es vacía
+           
+            $arrayDif=compareArray(formArray($type),$gResponse);//array que muestra la diferencia de
+            //las llaves que no están en la respuesta de Google
+            $arrayDifNumber=sizeof($arrayDif);
+            $postalCodeKey='CS'.$type.'TPOSTALCODE';
+            $postalCode=$originalData[$postalCodeKey];//seteo como default el codigo postal ingresado por el usuario
+            $isRecordable=true;
+
+            switch($arrayDifNumber){
+                    case 0:$postalCode=$gResponse[$postalCodeKey];break;
+                    case 1:$isRecordable=array_key_exists($postalCodeKey,$arrayDif);break;
+                    default:$isRecordable=false;break;
+            }
+
+            if($isRecordable){
+                $adressbook->recordAddress($md5,$gResponse['CS'.$type.'TSTREET1'], $gResponse['CS'.$type.'TSTATE'], $gResponse['CS'.$type.'TCITY'], $gResponse['CS'.$type.'TCOUNTRY'], $postalCode);
+            }    		
+        }
+    }
+        
+    function compareArray($arrayExpected,$arrayActual){//compara dos arrays,si son iguales , devuelve un array vacio
+        $result=array_diff_key($arrayExpected,$arrayActual);    	
+        return $result;	
+    }
+    
+    function formArray($letter){//define un array con las llaves a traer , pasandole la letra correspondiente(shiiping o billing)
+        return array('CS'.$letter.'TSTREET1'=>1,'CS'.$letter.'TSTATE'=>2,'CS'.$letter.'TCITY'=>3,'CS'.$letter.'TCOUNTRY'=>4,'CS'.$letter.'TPOSTALCODE'=>5);
     }
 
 

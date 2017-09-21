@@ -1,5 +1,5 @@
 <a name="inicio"></a>
-Wp-eCommerce- módulo Todo Pago (v1.2.0)
+Wp-eCommerce- módulo Todo Pago (v1.3.0)
 ============
 
 Plug in para la integración con gateway de pago <strong>Todo Pago</strong>
