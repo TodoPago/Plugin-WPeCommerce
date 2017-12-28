@@ -29,8 +29,8 @@ La versión de este plug in esta testeada en PHP 5.5 en adelante y WordPress 4.6
 
 <a name="instalacion"></a>
 ## Instalación
-1. Copiar y pegar la carpeta wpsc-merchants en la carpeta **\wp-content\plugins\wp-e-commerce\
-2. Ir a la administration de wp-ecommerce, ir a **Settings > Store > Payments**.
+1. Copiar y pegar la carpeta wpe-tp-plugin en la carpeta **\wp-content\plugins\
+2. Ir a la administration de wp-ecommerce, ir a **plugins > installed plugins y habilitar el plugin**.
 3. Check **TodoPago**, click **update** y luego click **Edit** para configurar el modulo
 
 Observaci&oacute;nes:
