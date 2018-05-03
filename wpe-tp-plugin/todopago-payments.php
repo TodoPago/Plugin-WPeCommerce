@@ -15,7 +15,7 @@ use TodoPago\Utils\Constantes;
 
 class WPSC_Payment_Gateway_Todopago_Payments extends WPSC_Payment_Gateway
 {
-    const TODOPAGO_PLUGIN_VERSION = "1.4.0";
+    const TODOPAGO_PLUGIN_VERSION = "1.6.0";
     const TP_FORM_EXTERNO = "ext";
     const TP_FORM_HIBRIDO = "hib";
     const TODOPAGO_DEVOLUCION_OK = 2011;
@@ -114,7 +114,7 @@ class WPSC_Payment_Gateway_Todopago_Payments extends WPSC_Payment_Gateway
         #$this->endpoint = $this->sandbox ? $this->endpoints['sandbox'] : $this->endpoints['production'];
         #$this->order_handler = WPSC_Todopago_Payments_Order_Handler::get_instance($this);
         $this->payment_capture = $this->setting->get('payment_capture') !== null ? $this->setting->get('payment_capture') : '';
-
+        
         //General
         $this->wpsc_ps = $wpsc_purchlog_statuses;
 
@@ -228,6 +228,12 @@ class WPSC_Payment_Gateway_Todopago_Payments extends WPSC_Payment_Gateway
      */
     public function setup_form()
     {
+        $url="https://api.github.com/repos/TodoPago/Plugin-WPeCommerce/releases/latest";
+        $download="https://github.com/TodoPago/Plugin-WPeCommerce";
+
+        //armar el logger
+        $logger = $this->_obtain_logger_minified(phpversion(), WPSC_VERSION, self::TODOPAGO_PLUGIN_VERSION);
+        $this->core->todopago_github_api($url,$download,$logger);
 
         ?>
         <!-- Account Credentials -->
@@ -543,12 +549,6 @@ class WPSC_Payment_Gateway_Todopago_Payments extends WPSC_Payment_Gateway
     }
 
 
-    function test()
-    {
-        die("55");
-    }
-
-
     public function te_v1_insert_hidden_field()
     {
         echo '<input type="hidden" id="todopago_card_nonce" name="todopago_card_nonce" value="" />';
@@ -611,9 +611,17 @@ class WPSC_Payment_Gateway_Todopago_Payments extends WPSC_Payment_Gateway
     // END ESTADO ORDEN
 
     // LOGGER BUILDER
+
+    private function _obtain_logger_minified($php_version, $woocommerce_version, $todopago_plugin_version)
+    {
+        $this->tpLogger->setPhpVersion($php_version);
+        $this->tpLogger->setCommerceVersion($woocommerce_version);
+        $this->tpLogger->setPluginVersion($todopago_plugin_version);
+        return $this->tpLogger->getLogger(false);
+    }
+
     private function _obtain_logger($php_version, $wpecommerce_version, $todopago_plugin_version, $endpoint, $customer_id, $order_id)
     {
-
         $this->tpLogger->setPhpVersion($php_version);
         $this->tpLogger->setCommerceVersion($wpecommerce_version);
         $this->tpLogger->setPluginVersion($todopago_plugin_version);
@@ -622,6 +630,7 @@ class WPSC_Payment_Gateway_Todopago_Payments extends WPSC_Payment_Gateway
         $this->tpLogger->setOrder($order_id);
         return $this->tpLogger->getLogger(true);
     }
+
     // END LOGGER BUILDER
 
     // ERROR PRINTER
@@ -800,10 +809,7 @@ class WPSC_Payment_Gateway_Todopago_Payments extends WPSC_Payment_Gateway
     // END GET STATUS METABOX
 
     // REFUNDS
-    
-
-    
-
+ 
     public function todopago_refund_ui()
     {
         // desde aca puedo llamar a las funciones de la orden y hacer la devolucion 

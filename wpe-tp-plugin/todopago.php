@@ -2,7 +2,7 @@
 /*
 Plugin Name: WP eCommerce TodoPago
 Plugin URI: https://developers.todopago.com.ar/
-Version: 1.0.0
+Version: 1.6.0
 Author: TodoPago
 Description: A plugin that allows the store owner to process payments using Square
 Author URI:  https://todopago.com.ar/

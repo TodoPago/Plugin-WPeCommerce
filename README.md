@@ -77,11 +77,10 @@ Para esto , en la configuracion se debe seleccionar la opcion Integrado en la pa
 
 Del lado del cliente se mostrara el siguiente formulario de pago.</br>
  
-![imagen de configuracion](https://raw.githubusercontent.com/TodoPago/imagenes/master/wpecommerce/wp-ecommerce_formhibrido-billetera.png)
-</br>
+-![imagen de configuracion](https://raw.githubusercontent.com/TodoPago/imagenes/master/woocommerce/11_formulario_hibrido3ver2.png)</br>
 El formulario tiene dos formas de pago, pagando directamente con los datos de una tarjeta ó utilizando la billetera de Todopago.<br> 
 Al ir a "Pagar con Billetera" desplegara una ventana que permitira ingresar a billetera y realizar el pago.	
-![imagen de configuracion](https://raw.githubusercontent.com/TodoPago/imagenes/master/wpecommerce/wp-ecommerce_formhib-bill-lightbox.png)
+-![imagen de configuracion](https://raw.githubusercontent.com/TodoPago/imagenes/master/woocommerce/15_billetera%20virtual3.png)
 
 </br>
 [<sub>Volver a inicio</sub>](#inicio)
