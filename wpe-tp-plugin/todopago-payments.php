@@ -5,7 +5,6 @@ require_once(dirname(__FILE__) . '/Core/ControlFraude/ControlFraudeFactory.php')
 require_once(dirname(__FILE__) . '/lib/db/AdressBook.php');
 require_once(dirname(__FILE__) . '/lib/logger.php');
 
-
 use TodoPago\Core;
 use TodoPago\Core\Address\AddressDTO;
 use TodoPago\Core\Config\ConfigDTO;
@@ -15,7 +14,7 @@ use TodoPago\Utils\Constantes;
 
 class WPSC_Payment_Gateway_Todopago_Payments extends WPSC_Payment_Gateway
 {
-    const TODOPAGO_PLUGIN_VERSION = "1.6.0";
+    const TODOPAGO_PLUGIN_VERSION = "1.7.0";
     const TP_FORM_EXTERNO = "ext";
     const TP_FORM_HIBRIDO = "hib";
     const TODOPAGO_DEVOLUCION_OK = 2011;
@@ -39,36 +38,38 @@ class WPSC_Payment_Gateway_Todopago_Payments extends WPSC_Payment_Gateway
     const TODOPAGO_STATUS_PAYMENT_DECLINED = "6";
     const TODOPAGO_MAX_INSTALLMENTS = 12;
 
-    private $payment_capture;
+    protected $payment_capture;
 
     //General
-    private $wpsc_ps;
-    private $wpdb;
-    private $tpLogger;
+    protected $wpsc_ps;
+    protected $wpdb;
+    protected $tpLogger;
 
     //TP
-    private $todopago_environment;
-    private $todopago_segment;
-    private $todopago_begin_state;
-    private $todopago_aprobattion_state;
-    private $todopago_denyal_state;
-    private $todopago_offline_state;
-    private $todopago_store_country;
-    private $todopago_currency;
-    private $todopago_typecheckout;
-    private $todopago_form_timeout_enabled;
-    private $todopago_empty_cart_enabled;
-    private $todopago_max_installments_enabled;
-    private $todopago_max_installments;
-    private $todopago_gmaps_validation;
-    private $todopago_form_timeout;
-    private $todopago_url_success;
-    private $todopago_url_pending;
-    private $todopago_gaa_response;
+    protected $todopago_environment;
+    protected $todopago_segment;
+    protected $todopago_begin_state;
+    protected $todopago_aprobattion_state;
+    protected $todopago_denyal_state;
+    protected $todopago_offline_state;
+    protected $todopago_store_country;
+    protected $todopago_currency;
+    protected $todopago_typecheckout;
+    protected $todopago_form_timeout_enabled;
+    protected $todopago_empty_cart_enabled;
+    protected $todopago_max_installments_enabled;
+    protected $todopago_max_installments;
+    protected $todopago_gmaps_validation;
+    protected $todopago_form_timeout;
+    protected $todopago_url_success;
+    protected $todopago_url_pending;
+    protected $todopago_gaa_response;
+    protected $todopago_payment_method_name;
+    protected $method_name;
 
     // Core
-    private $core;
-    private $coreConfig;
+    protected $core;
+    protected $coreConfig;
 
     public $location_id;
 
@@ -104,8 +105,9 @@ class WPSC_Payment_Gateway_Todopago_Payments extends WPSC_Payment_Gateway
 
     public function __construct()
     {
-        parent::__construct();
-
+        $this->setting = new WPSC_Payment_Gateway_Setting( "WPSC_Payment_Gateway_Todopago_Payments" );
+        $this->method_name="todopago";
+        
         global $wpsc_purchlog_statuses;
 
         $this->title = __('Todo Pago', 'todopago');
@@ -136,7 +138,7 @@ class WPSC_Payment_Gateway_Todopago_Payments extends WPSC_Payment_Gateway
         $this->todopago_form_timeout = $this->setting->get("todopago_form_timeout") !== false ? $this->setting->get("todopago_form_timeout") : "180000";
         $this->todopago_url_success = $this->setting->get("todopago_url_success") !== false ? $this->setting->get("todopago_url_success") : get_site_url();
         $this->todopago_url_pending = $this->setting->get("todopago_url_pending") !== false ? $this->setting->get("todopago_url_pending") : get_site_url();
-
+        
         // Define user set variables
         $this->app_id = $this->setting->get('app_id');
         $this->location_id = $this->setting->get('location_id');
@@ -158,21 +160,23 @@ class WPSC_Payment_Gateway_Todopago_Payments extends WPSC_Payment_Gateway
         add_action('wp_ajax_nopriv_getCredentials', array($this, 'getCredentials'));
 
         $this->cartUrl = $this->get_cart_url();
-
     }
-
+    
     public function init()
     {
         parent::init();
 
-        //add_action('wp_enqueue_scripts', array($this, 'square_scripts'));
-
-        add_action("admin_head", array($this, "head_script"));
-
+        add_action("admin_head", array($this, "head_script")); 
+        
         // Add hidden field to hold token value
         add_action('wpsc_inside_shopping_cart', array($this, 'te_v1_insert_hidden_field'));
         if (isset($_GET['second_step'])) {
-            $this->second_step_todopago();
+            $cond = get_post_meta($_GET["order_id"], 'make_gaa', true);
+            
+            if(!$cond){
+                update_post_meta($_GET["order_id"], 'make_gaa',true);
+                $this->second_step_todopago();
+            }
         }
 
         # add_action('wpsc_default_credit_card_form_end', array($this, 'load_todopago_checkout'));
@@ -180,9 +184,8 @@ class WPSC_Payment_Gateway_Todopago_Payments extends WPSC_Payment_Gateway
         // Add extra zip field to card data for TeV1
         //add_action('wpsc_tev1_default_credit_card_form_end', array($this, 'tev1_add_billing_card_zip'));
         //add_filter('wpsc_default_credit_card_form_fields', array($this, 'tev2_add_billing_card_zip'), 10, 2);
-
-        add_action('wpsc_purchlogitem_metabox_start', array($this, 'meta_box_todopago'), 8);
-        add_action('wpsc_purchlogitem_metabox_end', array($this, 'todopago_refund_ui'), 8);
+        
+        
 
         if (isset($_GET['TodoPago_redirect']) && $_GET["TodoPago_redirect"] == "true" && isset($_GET["order"])) {
             $row = get_post_meta($_GET["order"], 'response_SAR', true);
@@ -206,11 +209,15 @@ class WPSC_Payment_Gateway_Todopago_Payments extends WPSC_Payment_Gateway
         <style>
 
             #gateway_settings_todopago-payments_form tr:first-of-type {
-                display: none
+                display: none;
             }
         </style>
 
         <?php
+        
+        add_action('wpsc_purchlogitem_metabox_start', array($this, 'meta_box_todopago'), 8);        
+        
+        add_action('wpsc_purchlogitem_metabox_end', array($this, 'todopago_refund_ui'), 8);
     }
 
     /**
@@ -234,6 +241,9 @@ class WPSC_Payment_Gateway_Todopago_Payments extends WPSC_Payment_Gateway
         //armar el logger
         $logger = $this->_obtain_logger_minified(phpversion(), WPSC_VERSION, self::TODOPAGO_PLUGIN_VERSION);
         $this->core->todopago_github_api($url,$download,$logger);
+        $img1=$this->getImageName(1);
+        $img2=$this->getImageName(2);
+        $img3=$this->getImageName(3);
 
         ?>
         <!-- Account Credentials -->
@@ -501,6 +511,23 @@ class WPSC_Payment_Gateway_Todopago_Payments extends WPSC_Payment_Gateway
             </td>
 
         </tr>
+        
+       <!-- Todopago Billetera banner -->
+        <tr>
+            <td colspan="2">
+                <h4><?php _e( 'Billetera en checkout', 'wp-e-commerce' ); ?></h4>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <label><?php _e( 'Seleccione el banner que desea mostrar para billetera', 'wp-e-commerce' ); ?></label>
+            </td>
+            <td>
+                <label><input <?php checked( $this->setting->get( 'todopago_billetera_banner' ) ? $this->setting->get( 'todopago_billetera_banner' ) : $img1, $img1 ); ?> type="radio" name="<?php echo esc_attr( $this->setting->get_field_name( 'todopago_billetera_banner' ) ); ?>" value="<?php echo $img1; ?>" style="margin-top: -40px;" /><img src="<?php echo $img1; ?>"></label><br>
+                <label><input <?php checked( $this->setting->get( 'todopago_billetera_banner' ), $img2 ); ?> type="radio" name="<?php echo esc_attr( $this->setting->get_field_name( 'todopago_billetera_banner' ) ); ?>" value="<?php echo $img2; ?>" style="margin-top: -40px;" /><img src="<?php echo $img2; ?>"></label><br>
+                <label><input <?php checked( $this->setting->get( 'todopago_billetera_banner' ), $img3 ); ?> type="radio" name="<?php echo esc_attr( $this->setting->get_field_name( 'todopago_billetera_banner' ) ); ?>" value="<?php echo $img3; ?>" style="margin-top: -40px;" /><img src="<?php echo $img3; ?>"></label><br>
+            </td>
+        </tr>
 
         <input type="hidden" name="wpnonce" id="wpnonce" value="<?php echo $this->tp_nonce(); ?>"/>
         <?php
@@ -548,7 +575,10 @@ class WPSC_Payment_Gateway_Todopago_Payments extends WPSC_Payment_Gateway
         <?php
     }
 
-
+    protected function getImageName($index){
+        return "https://todopago.com.ar/sites/todopago.com.ar/files/billetera/pluginstarjeta{$index}.jpg";
+    }
+    
     public function te_v1_insert_hidden_field()
     {
         echo '<input type="hidden" id="todopago_card_nonce" name="todopago_card_nonce" value="" />';
@@ -557,7 +587,7 @@ class WPSC_Payment_Gateway_Todopago_Payments extends WPSC_Payment_Gateway
     /**
      * TODOPAGO INSTALL
      */
-    private function todopago_install()
+    protected function todopago_install()
     {
         $core = new Core();
         $core->todopago_core_install();
@@ -565,7 +595,7 @@ class WPSC_Payment_Gateway_Todopago_Payments extends WPSC_Payment_Gateway
 
     // DATABASE MANAGMENT
     //REFACTOR
-    private function tp_setOrderStatus($order, $status)
+    protected function tp_setOrderStatus($order, $status)
     {
         $statusData = $this->tp_loadStatus($status);
         if (!is_string($order))
@@ -612,7 +642,7 @@ class WPSC_Payment_Gateway_Todopago_Payments extends WPSC_Payment_Gateway
 
     // LOGGER BUILDER
 
-    private function _obtain_logger_minified($php_version, $woocommerce_version, $todopago_plugin_version)
+    protected function _obtain_logger_minified($php_version, $woocommerce_version, $todopago_plugin_version)
     {
         $this->tpLogger->setPhpVersion($php_version);
         $this->tpLogger->setCommerceVersion($woocommerce_version);
@@ -620,7 +650,7 @@ class WPSC_Payment_Gateway_Todopago_Payments extends WPSC_Payment_Gateway
         return $this->tpLogger->getLogger(false);
     }
 
-    private function _obtain_logger($php_version, $wpecommerce_version, $todopago_plugin_version, $endpoint, $customer_id, $order_id)
+    protected function _obtain_logger($php_version, $wpecommerce_version, $todopago_plugin_version, $endpoint, $customer_id, $order_id)
     {
         $this->tpLogger->setPhpVersion($php_version);
         $this->tpLogger->setCommerceVersion($wpecommerce_version);
@@ -634,7 +664,7 @@ class WPSC_Payment_Gateway_Todopago_Payments extends WPSC_Payment_Gateway
     // END LOGGER BUILDER
 
     // ERROR PRINTER
-    function _printErrorMsg($message = null)
+    public function _printErrorMsg($message = null)
     {
         if ($message != null)
             return "<script> window.addEventListener('load', alert('" . $message . "'), false); </script>";
@@ -648,7 +678,7 @@ class WPSC_Payment_Gateway_Todopago_Payments extends WPSC_Payment_Gateway
      */
 
     //TODOPAGO COUNTRY
-    private function todopago_country()
+    protected  function todopago_country()
     {
         $fieldName = "todopago_store_country";
 
@@ -675,7 +705,7 @@ class WPSC_Payment_Gateway_Todopago_Payments extends WPSC_Payment_Gateway
     // END TODOPAGO COUNTRY
 
     // TODOPAGO CURRENCY
-    private function todopago_currency()
+    protected function todopago_currency()
     {
         $fieldNameC = "todopago_store_country";
 
@@ -691,7 +721,7 @@ class WPSC_Payment_Gateway_Todopago_Payments extends WPSC_Payment_Gateway
     // END TODOPAGO CURRENCY
 
     // TODOPAGO TYPE CHECKOUT
-    private function todopago_type_checkout()
+    protected function todopago_type_checkout()
     {
         $fieldName = "todopago_typecheckout";
 
@@ -720,7 +750,7 @@ class WPSC_Payment_Gateway_Todopago_Payments extends WPSC_Payment_Gateway
     // END TODOPAGO TYPE CHECKOUT
 
     // TODOPAGO STATUS LIST
-    private function tp_status_list($status_field = null)
+    protected function tp_status_list($status_field = null)
     {
         if ($this->setting->get($status_field) == null || $this->setting->get($status_field) == '') {
             $todopago_status = 'incomplete_sale';
@@ -743,7 +773,7 @@ class WPSC_Payment_Gateway_Todopago_Payments extends WPSC_Payment_Gateway
     // END TODOPAGO STATUS LIST
 
     // TODOPAGO LOAD STATUS
-    private function tp_loadStatus($status)
+    protected function tp_loadStatus($status)
     {
         $wpsc_purchlog_statuses = $this->wpsc_ps;
 
@@ -760,7 +790,7 @@ class WPSC_Payment_Gateway_Todopago_Payments extends WPSC_Payment_Gateway
     //END TODOPAGO LOAD STATUS
 
     // GET HTTP HEADER
-    private function getHttpHeader()
+    protected function getHttpHeader()
     {
         $esProductivo = $this->setting->get('todopago_environment') == Constantes::TODOPAGO_PROD;
         $http_header = $esProductivo ? $this->setting->get("todopago_authorization_header_prod") : $this->setting->get("todopago_authorization_header_dev");
@@ -770,7 +800,7 @@ class WPSC_Payment_Gateway_Todopago_Payments extends WPSC_Payment_Gateway
 
     // END HTTP HEADER
 
-    private function tp_nonce()
+    protected function tp_nonce()
     {
         return wp_create_nonce('getCredentials');
     }
@@ -799,10 +829,9 @@ class WPSC_Payment_Gateway_Todopago_Payments extends WPSC_Payment_Gateway
         // desde aca puedo llamar a las funciones de la orden y hacer la devolucion
         $id = filter_var($_REQUEST['id'], FILTER_SANITIZE_STRING);
         $order = wpsc_get_order($id, $by = 'id');
-        $totalAmount = $order->get_total();
-        $originalamount = get_post_meta($id, 'originalamount', true);
+        $totalAmount = (integer)$order->get_total();
+        $originalamount = (integer)get_post_meta($id, 'originalamount', true);
         $financial_cost = $totalAmount - $originalamount;
-
         $this->core->build_todopago_meta_box($financial_cost, $totalAmount, Constantes::TODOPAGO_TODOPAGO, $id);
     }
 
@@ -815,9 +844,9 @@ class WPSC_Payment_Gateway_Todopago_Payments extends WPSC_Payment_Gateway
         // desde aca puedo llamar a las funciones de la orden y hacer la devolucion 
         $id = filter_var($_REQUEST['id'], FILTER_SANITIZE_STRING);
         $order = wpsc_get_order($id, $by = 'id');
-        $totalAmount = $order->get_total();
-        $originalamount = get_post_meta($order->get('id'), 'originalamount', true);
-        $financial_cost = $totalAmount - $originalamount;
+        $totalAmount = (integer)$order->get_total();
+        $originalamount = (integer)get_post_meta($order->get('id'), 'originalamount', true);
+        $financial_cost = (integer)$totalAmount - $originalamount;
         $logger = $this->_obtain_logger(phpversion(), WPSC_VERSION, self::TODOPAGO_PLUGIN_VERSION, $this->setting->get("todopago_environment"), $order->get('sessionid'), $order->get('id'));
 
         $this->core->setTpLogger($logger);
@@ -951,9 +980,13 @@ class WPSC_Payment_Gateway_Todopago_Payments extends WPSC_Payment_Gateway
         $orderid = $order_data['id'];
         #[2017-11-28T13:47:44+00:00] INFO  [T\Core(getCommerceData:398) | /opt/lampp/htdocs/wpe-dev/wp-content/plugins/wpe-tp-plugin/Core/Core.php] PAYMENT (PHPv.5.6.30 - eCv.3.12.4 - Pv.1.2.0 - EP.test - Cus.9041511876863 - Ord.424) params SAR {"comercio":{"Security":"65bd3e51b73d4cdfb688637b3d98dbf2","EncodingMethod":"XML","Merchant":"16759","URL_OK":"http:\/\/localhost:8080\/wpe-dev?sessionid=9041511876863&second_step=true&order_id=424","URL_ERROR":"http:\/\/localhost:8080\/wpe-dev\/products-page\/checkout\/?sessionid=9041511876863&second_step=true&order_id=424"
         $this->getCoreConfig()->setUrlSuccess($urlSitio . '?' . http_build_query(array_merge($_GET, array('sessionid' => $sessionid, 'second_step' => 'true', 'order_id' => $orderid))));
-        $this->getCoreConfig()->setUrlError($arrayHome[0] . '//' . "{$_SERVER['HTTP_HOST']}{$_SERVER['REQUEST_URI']}" . '?' . http_build_query(array_merge($_GET, array('sessionid' => $sessionid, 'second_step' => 'true', 'order_id' => $orderid))));
+        $this->getCoreConfig()->setUrlError($arrayHome[0] . '//' . "{$_SERVER['HTTP_HOST']}{$_SERVER['REQUEST_URI']}" . '?' . http_build_query(array_merge($_GET, array('sessionid' => $sessionid, 'second_step' => 'true', 'order_id' => $orderid))));        
+        $isBilletera = ( $this->method_name === Constantes::TODOPAGO_BILLETERA ) ? Constantes::TODOPAGO_BILLETERA : Constantes::TODOPAGO_TODOPAGO;
+        $this->getCoreConfig()->setIsBilletera($isBilletera);
+        
         #$token = sanitize_text_field( $_POST['token'] );
         $this->getCore()->setConfigModel($this->getCoreConfig());
+        
         $this->payment_capture;
         $order = $this->checkout_data->get_data();
         $customerBillingDTO = $this->buildCustomerDTO(Constantes::TODOPAGO_BILLING, $order);
@@ -1086,7 +1119,27 @@ class WPSC_Payment_Gateway_Todopago_Payments extends WPSC_Payment_Gateway
                 </div>
             </div>
         </div>
-        <script> console.log("Test"); </script>
+        
+     <script>    
+           if (!window.jQuery) {  
+                add_jquery();
+           }
+           
+           function innerClose() {
+                var tpModal = $(".tp-modal");
+                $(".tp-get-status").empty();
+                tpModal.hide('fast');
+                tpModal.css("z-index", "-10");
+           } 
+            
+            function add_jquery(){
+                var script = document.createElement('script');
+                script.src = 'https://code.jquery.com/jquery-3.3.1.js';
+                script.type = 'text/javascript';
+                document.getElementsByTagName('head')[0].appendChild(script);
+            }
+        </script>
+        
         <?php
         include_once dirname(__FILE__) . "/lib/view/error_gaa.php";
     }
@@ -1103,8 +1156,7 @@ class WPSC_Payment_Gateway_Todopago_Payments extends WPSC_Payment_Gateway
     }
 
     /****CORE****/
-
-    private function buildOpcionales()
+    protected function buildOpcionales()
     {
         $opcionales = Array();
         if ($this->setting->get('todopago_max_installments') == 0)
@@ -1123,7 +1175,7 @@ class WPSC_Payment_Gateway_Todopago_Payments extends WPSC_Payment_Gateway
         return $opcionales;
     }
 
-    private function buildMerchantDTO()
+    protected function buildMerchantDTO()
     {
         $http_header = $this->getHttpHeader();
         $esProductivo = $this->setting->get('todopago_environment') == Constantes::TODOPAGO_PROD;
@@ -1205,7 +1257,7 @@ class WPSC_Payment_Gateway_Todopago_Payments extends WPSC_Payment_Gateway
 
     public function payment_fields()
     {
-        parent::payment_fields();
+        //parent::payment_fields();
         ?>
 
         <div><img src="https://todopago.com.ar/sites/todopago.com.ar/files/pluginstarjeta.jpg" /></div>
@@ -1269,6 +1321,5 @@ class WPSC_Payment_Gateway_Todopago_Payments extends WPSC_Payment_Gateway
         $this->todopago_gaa_response = $todopago_gaa_response;
     }
 }
-
 
 ?>
